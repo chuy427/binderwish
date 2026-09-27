@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import PlaceholderCard from './PlaceholderCard';
-import { setSlots } from '../api';
+import { setSlots } from '../catalog';
+import { getGame } from '../games';
 
 const PER_PAGE = 9; // one 9-pocket binder page
 
@@ -8,19 +9,25 @@ const PER_PAGE = 9; // one 9-pocket binder page
 //  - keepPositions: each page mirrors a real binder page of the set's full slot
 //    list; slots not being printed stay blank so placeholders drop straight in.
 //  - newPagePerSet: each set starts on a fresh page.
-async function buildPages(queue, options, setsInfo) {
+async function buildPages(queue, options, getSetsInfo) {
+  // Group by game + set (a sheet can mix games; items saved before multi-game are Pokémon).
   const bySet = new Map();
   for (const item of queue) {
-    if (!bySet.has(item.setId)) bySet.set(item.setId, []);
-    bySet.get(item.setId).push(item);
+    const k = `${item.game || 'pokemon'}|${item.setId}`;
+    if (!bySet.has(k)) bySet.set(k, []);
+    bySet.get(k).push(item);
   }
   const pages = [];
   let loose = [];
-  for (const [setId, items] of bySet) {
+  for (const [k, items] of bySet) {
+    const [gameId, setId] = [k.slice(0, k.indexOf('|')), k.slice(k.indexOf('|') + 1)];
     items.sort((a, b) => a.order - b.order);
     const setName = items[0].setName;
     if (options.keepPositions) {
-      const all = await setSlots(setId, setsInfo, { variants: options.variants }).catch(() => null);
+      const game = getGame(gameId);
+      const all = await getSetsInfo(gameId)
+        .then((info) => setSlots(game, setId, info, { variants: options.variants }))
+        .catch(() => null);
       if (all?.length) {
         const wanted = new Map(items.map((i) => [i.key, i]));
         for (let p = 0; p * PER_PAGE < all.length; p++) {
@@ -49,13 +56,13 @@ async function buildPages(queue, options, setsInfo) {
   return pages;
 }
 
-export default function PrintArea({ queue, options, setsInfo, onDone }) {
+export default function PrintArea({ queue, options, getSetsInfo, onDone }) {
   const ref = useRef(null);
   const [pages, setPages] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
-    buildPages(queue, options, setsInfo).then((p) => { if (!cancelled) setPages(p); });
+    buildPages(queue, options, getSetsInfo).then((p) => { if (!cancelled) setPages(p); });
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

@@ -1,13 +1,14 @@
 # BinderWish
 
-Print card-sized placeholders for the Pokémon TCG cards missing from your
-master set binder. Each placeholder is the card art with a subtle
+Print card-sized placeholders for the trading cards missing from your master
+set binder — Pokémon and Disney Lorcana so far. Each placeholder is the card art with a subtle
 "placeholder / not a real card" band (naming the variant) and a QR code to the
 exact TCGPlayer listing — so when you flip through the binder you can scan a gap
 and buy the real card.
 
 - **Master sets**: every printing gets its own slot — reverse holos, Poké Ball /
-  Master Ball patterns, 1st Edition, etc. — each linking to its own listing.
+  Master Ball patterns, 1st Edition, Lorcana Cold Foils, Enchanted / Epic /
+  Iconic cards, etc. — each linking to its own listing.
 - **Owned checklist**: mark what you have; see progress and what's left to buy,
   and print placeholders only for the missing slots. Marking a card owned takes
   it off the print sheet. (Saved in your browser.)
@@ -17,10 +18,20 @@ and buy the real card.
 
 ## Data
 
-- Card lists, images and search: [TCGdex](https://tcgdex.dev) (called from the browser, cached locally).
-- Variants, TCGPlayer product IDs and per-printing prices: a static catalog built
-  from [tcgcsv.com](https://tcgcsv.com) (a daily mirror of TCGPlayer's catalog)
-  by `scripts/sync-tcgplayer.mjs`.
+- Card lists, images and search (called from the browser, cached locally):
+  - Pokémon: [TCGdex](https://tcgdex.dev)
+  - Lorcana: [Lorcast](https://lorcast.com) (asks for 50–100 ms between requests)
+- Variants, TCGPlayer product IDs and per-printing prices: a static catalog per
+  game built from [tcgcsv.com](https://tcgcsv.com) (a daily mirror of TCGPlayer's
+  catalog) by `scripts/sync-tcgplayer.mjs`, into `public/tcgplayer/<game>/`.
+
+## Adding a game
+
+Each game is an adapter in `src/games/` (see `src/games/index.js` for the
+interface): where its sets, cards and images come from, how its cards match
+TCGPlayer products, and how card numbers are shown. `src/catalog.js` turns any
+game's cards into binder slots. Add the game's TCGPlayer category and set matching
+to `scripts/sync-tcgplayer.mjs`, and register the adapter in `src/games/index.js`.
 
 ## Development
 
@@ -37,8 +48,8 @@ GitHub Pages via `.github/workflows/deploy.yml`, on every push to `main` and
 daily at 21:30 UTC (after tcgcsv's daily refresh) so new sets and prices stay current.
 The workflow can also be run manually from the Actions tab.
 
-Routes: `/binderwish/` is the home page, `/binderwish/search?set=<id>` (or `?q=<name>`)
-is the collecting tool. GitHub Pages only serves real files, so the build copies
+Routes: `/binderwish/` is the home page, `/binderwish/search?game=<game>&set=<id>`
+(or `&q=<name>`; `game` defaults to Pokémon) is the collecting tool. GitHub Pages only serves real files, so the build copies
 `index.html` to `404.html` — unknown paths like `/search` then load the app.
 Assets use an absolute base (`/binderwish/`, see `vite.config.js`); build with
 `BASE_PATH=/` when serving from the root of a custom domain.

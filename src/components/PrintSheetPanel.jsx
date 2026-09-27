@@ -12,7 +12,7 @@ import SouthWestIcon from '@mui/icons-material/SouthWest';
 import SouthEastIcon from '@mui/icons-material/SouthEast';
 import CollectionsBookmarkIcon from '@mui/icons-material/CollectionsBookmark';
 import PlaceholderCard from './PlaceholderCard';
-import { cardImage, tcgplayerUrl } from '../api';
+import { cardImage, tcgplayerUrl } from '../catalog';
 
 const SAMPLE = {
   name: 'Exeggcute', setName: 'Prismatic Evolutions', number: '001', numberLabel: '001/131',
@@ -117,7 +117,7 @@ export default function PrintSheetPanel({ queue, options, setOption, onQty, onCl
         checked={options.variants}
         onChange={(v) => setOption('variants', v)}
         label="Master set (every variant)"
-        help="Reverse holos, Poké Ball / Master Ball patterns and other printings each get their own slot."
+        help="Every printing gets its own slot — reverse holos, cold foils, Poké Ball / Master Ball patterns, Enchanted cards and more."
       />
 
 

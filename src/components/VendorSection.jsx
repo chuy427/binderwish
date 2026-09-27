@@ -7,7 +7,8 @@ import AutorenewIcon from '@mui/icons-material/Autorenew';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import PlaceholderCard from './PlaceholderCard';
-import { setSlots } from '../api';
+import { setSlots } from '../catalog';
+import pokemon from '../games/pokemon';
 
 const SHOWCASE_SET = 'sv03.5'; // 151 — lots of recognizable high-value cards
 const CARD_PX = (63 / 25.4) * 96; // 63mm in CSS px
@@ -76,7 +77,7 @@ function DisplayCase({ setsInfo }) {
   const [slots, setSlotsState] = useState([]);
   useEffect(() => {
     if (!setsInfo.loaded) return;
-    setSlots(SHOWCASE_SET, setsInfo, { variants: false })
+    setSlots(pokemon, SHOWCASE_SET, setsInfo, { variants: false })
       .then((all) => setSlotsState(all.filter((s) => s.price != null).sort((a, b) => b.price - a.price).slice(0, 6)))
       .catch(() => {});
   }, [setsInfo]);

@@ -1,7 +1,11 @@
 import { QRCodeSVG } from 'qrcode.react';
-import { cardImage, tcgplayerUrl } from '../api';
+import { cardImage, tcgplayerUrl } from '../catalog';
 
 const QR_INSET = '3.5mm';
+// Where the "not a real card" band sits, per game — over a part of the card that
+// doesn't hide its name or number (Pokémon: attack area; Lorcana: lower art, since
+// the name and version sit mid-card).
+const BAND_TOP = { pokemon: '52mm', lorcana: '30mm' };
 const QR_POSITION = {
   br: { right: QR_INSET, bottom: QR_INSET },
   bl: { left: QR_INSET, bottom: QR_INSET },
@@ -42,7 +46,7 @@ export default function PlaceholderCard({ slot, options, highRes = false, style 
 
       {/* Subtle "not a real card" band */}
       <div style={{
-        position: 'absolute', top: '52mm', left: 0, right: 0, padding: '0.8mm 2mm', textAlign: 'center',
+        position: 'absolute', top: BAND_TOP[slot.game] || BAND_TOP.pokemon, left: 0, right: 0, padding: '0.8mm 2mm', textAlign: 'center',
         background: 'rgba(109,74,255,.45)', color: 'rgba(255,255,255,.95)',
         font: '700 5.5pt/1.25 Roboto, system-ui, sans-serif', letterSpacing: '.14em', textTransform: 'uppercase',
       }}>

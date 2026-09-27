@@ -9,7 +9,7 @@ import SearchPanel from './components/SearchPanel';
 import PrintSheetPanel from './components/PrintSheetPanel';
 import PrintArea from './components/PrintArea';
 import HomePage from './components/HomePage';
-import { fetchCardExtras, loadSets } from './api';
+import { DEFAULT_GAME, GAMES, getGame } from './games';
 
 // Keys kept from the app's earlier "ProxyScan" name so saved data carries over.
 const STORAGE_KEY = 'proxyscan.v1';
@@ -18,7 +18,7 @@ const DEFAULT_OPTIONS = {
   paper: 'letter', qrPos: 'br', qrSize: 14, gap: 0.5, cutLines: true, price: false,
   variants: true, keepPositions: false, newPagePerSet: true,
 };
-// Parallel TCGdex lookups for cards the bundled catalog couldn't match.
+// Parallel card-data lookups for cards the bundled catalog couldn't match.
 const CONCURRENCY = 4;
 
 // Print-sheet items saved by the pre-BinderWish version were one per card, not per
@@ -27,6 +27,7 @@ function migrateItem(c) {
   if (c.key) return c;
   return {
     ...c,
+    game: 'pokemon',
     key: `${c.id}|legacy`,
     cardId: c.id,
     setId: c.id.slice(0, c.id.lastIndexOf('-')),
@@ -44,9 +45,10 @@ function migrateItem(c) {
 // refreshes load the app.
 const BASE = import.meta.env.BASE_URL; // e.g. "/binderwish/"
 
-function routeUrl(view, { set, q } = {}) {
+function routeUrl(view, { game, set, q } = {}) {
   if (view !== 'search') return BASE;
   const params = new URLSearchParams();
+  if (game && game !== DEFAULT_GAME) params.set('game', game);
   if (set) params.set('set', set);
   if (q) params.set('q', q);
   const qs = params.toString();
@@ -60,10 +62,11 @@ function readRoute() {
   const params = new URLSearchParams(location.search);
   return {
     view: path.replace(/\/$/, '') === 'search' ? 'search' : 'home',
+    game: GAMES[params.get('game')] ? params.get('game') : DEFAULT_GAME,
     set: params.get('set') || null,
     q: params.get('q') || '',
     // Remounts the search panel when arriving from somewhere else (home, back/forward).
-    key: `${params.get('set') || ''}|${params.get('q') || ''}|${Date.now()}`,
+    key: `${params.get('game') || ''}|${params.get('set') || ''}|${params.get('q') || ''}|${Date.now()}`,
   };
 }
 
@@ -82,19 +85,34 @@ function loadSaved() {
 }
 
 // Binder order: sets in the order they were first added, then set order within each.
+const setKey = (c) => `${c.game || 'pokemon'}|${c.setId}`;
 function sortQueue(queue) {
   const setRank = new Map();
-  queue.forEach((c) => { if (!setRank.has(c.setId)) setRank.set(c.setId, setRank.size); });
-  return [...queue].sort((a, b) => setRank.get(a.setId) - setRank.get(b.setId) || a.order - b.order);
+  queue.forEach((c) => { if (!setRank.has(setKey(c))) setRank.set(setKey(c), setRank.size); });
+  return [...queue].sort((a, b) => setRank.get(setKey(a)) - setRank.get(setKey(b)) || a.order - b.order);
 }
+
+const EMPTY_SETS = { sets: [], names: new Map(), official: new Map(), pocketIds: new Set(), loaded: false };
 
 export default function App() {
   const initial = useMemo(loadSaved, []);
-  // queue: binder slots to print, each with a qty (see api.js makeSlot for the shape)
+  // queue: binder slots to print, each with a qty (see catalog.js makeSlot for the shape)
   const [queue, setQueue] = useState(initial.queue);
   const [options, setOptions] = useState(initial.options);
   const [owned, setOwned] = useState(initial.owned);
-  const [setsInfo, setSetsInfo] = useState({ sets: [], names: new Map(), official: new Map(), pocketIds: new Set(), loaded: false });
+  // Each game's set list, loaded the first time that game is used.
+  const [setsByGame, setSetsByGame] = useState({});
+  const setsLoading = useRef(new Map());
+  const getSetsInfo = useCallback((gameId) => {
+    if (!setsLoading.current.has(gameId)) {
+      const p = getGame(gameId).loadSets()
+        .then((info) => ({ ...info, loaded: true }))
+        .catch(() => ({ ...EMPTY_SETS, loaded: true }))
+        .then((info) => { setSetsByGame((m) => ({ ...m, [gameId]: info })); return info; });
+      setsLoading.current.set(gameId, p);
+    }
+    return setsLoading.current.get(gameId);
+  }, []);
   const [printing, setPrinting] = useState(false);
   const [toast, setToast] = useState(null);
   // Routes: <base> = home, <base>search?set=<id>|q=<name> = the tool.
@@ -118,11 +136,10 @@ export default function App() {
     try { localStorage.setItem(OWNED_KEY, JSON.stringify([...owned])); } catch {}
   }, [owned]);
 
-  useEffect(() => {
-    loadSets()
-      .then((info) => setSetsInfo({ ...info, loaded: true }))
-      .catch(() => setSetsInfo((s) => ({ ...s, loaded: true })));
-  }, []);
+  // The current game's sets, plus Pokémon's for the home page showcase.
+  useEffect(() => { getSetsInfo(route.game); getSetsInfo(DEFAULT_GAME); }, [route.game, getSetsInfo]);
+  const game = getGame(route.game);
+  const setsInfo = setsByGame[route.game] || EMPTY_SETS;
 
   // Cards the bundled TCGPlayer catalog couldn't match get their TCGPlayer id and
   // price from TCGdex in the background, a few at a time.
@@ -137,12 +154,14 @@ export default function App() {
         inProgress.current.delete(item.key);
         setQueue((q) => q.map((c) => (c.key === item.key ? { ...c, ...patch } : c)));
       };
-      fetchCardExtras(item.cardId)
+      const lookup = getGame(item.game).fetchCardExtras;
+      if (!lookup) { finish({ status: 'ready' }); continue; }
+      lookup(item.cardId)
         .then((x) => finish({
           tcgplayerId: x.tcgplayerId,
           price: item.price ?? x.price,
           setName: item.setName || x.setName,
-          image: item.image || x.image || null,
+          ...(item.images || item.image ? {} : { images: x.images }),
           status: 'ready',
         }))
         .catch(() => finish({ status: 'error' }));
@@ -244,7 +263,11 @@ export default function App() {
         </AppBar>
 
         {view === 'home' ? (
-          <HomePage setsInfo={setsInfo} onStart={({ set, query }) => navigate('search', { set: set?.id, q: query })} />
+          <HomePage
+            setsByGame={setsByGame}
+            loadGameSets={getSetsInfo}
+            onStart={({ game: g, set, query }) => navigate('search', { game: g, set: set?.id, q: query })}
+          />
         ) : (
         <Container maxWidth="xl" sx={{ py: 3 }}>
           <Box sx={{
@@ -254,10 +277,12 @@ export default function App() {
             alignItems: 'start',
           }}>
             <SearchPanel
+              game={game}
+              onGameChange={(g) => navigate('search', { game: g })}
               key={route.key}
               initialSetId={route.set}
               initialQuery={route.q}
-              onSearched={({ set, query }) => history.replaceState(null, '', routeUrl('search', { set: set?.id, q: query }))}
+              onSearched={({ set, query }) => history.replaceState(null, '', routeUrl('search', { game: route.game, set: set?.id, q: query }))}
               setsInfo={setsInfo}
               variants={options.variants}
               queuedKeys={queuedKeys}
@@ -293,7 +318,7 @@ export default function App() {
         />
       </Box>
 
-      {printing && <PrintArea queue={queue} options={options} setsInfo={setsInfo} onDone={() => setPrinting(false)} />}
+      {printing && <PrintArea queue={queue} options={options} getSetsInfo={getSetsInfo} onDone={() => setPrinting(false)} />}
     </>
   );
 }

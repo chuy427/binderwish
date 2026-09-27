@@ -1,13 +1,14 @@
 #!/usr/bin/env node
-// Builds a static TCGdex-card → TCGPlayer-product lookup from tcgcsv.com (a daily
-// mirror of TCGPlayer's catalog). Needed because TCGdex hasn't linked every card
-// to TCGPlayer (especially new sets), and neither TCGPlayer nor tcgcsv allow
-// cross-origin requests, so the browser can't query them directly.
+// Builds static card → TCGPlayer-product lookups from tcgcsv.com (a daily mirror
+// of TCGPlayer's catalog), one per game. Needed because the card-data APIs don't
+// link every card/variant to TCGPlayer (and don't carry per-printing prices), and
+// neither TCGPlayer nor tcgcsv allow cross-origin requests from the browser.
 //
-// Output (served as static files):
-//   public/tcgplayer/index.json        { generatedAt, sets: { <tcgdexSetId>: [groupId, ...] } }
-//   public/tcgplayer/g/<groupId>.json  [[number, productId, name, { <printing>: marketPrice|null }], ...]
-//     printing = TCGPlayer sub-type: "Normal", "Holofoil", "Reverse Holofoil", "1st Edition", …
+// Output (served as static files), per game (pokemon, lorcana):
+//   public/tcgplayer/<game>/index.json        { generatedAt, sets: { <setId>: [groupId, ...] } }
+//   public/tcgplayer/<game>/g/<groupId>.json  [[number, productId, name, { <printing>: marketPrice|null }], ...]
+//     setId    = the card-data API's set id (TCGdex for Pokémon, Lorcast set code for Lorcana)
+//     printing = TCGPlayer sub-type: "Normal", "Holofoil", "Reverse Holofoil", "Cold Foil", …
 //
 // Run: npm run sync-tcgplayer   (also runs automatically before every `npm run build`;
 //      `--if-missing` only syncs when no catalog exists yet — used by `npm run dev`)
@@ -16,24 +17,11 @@ import { access, mkdir, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-const POKEMON_CATEGORY = 3;
-const TCGCSV = `https://tcgcsv.com/tcgplayer/${POKEMON_CATEGORY}`;
+const TCGCSV = 'https://tcgcsv.com/tcgplayer';
 const TCGDEX = 'https://api.tcgdex.net/v2/en';
+const LORCAST = 'https://api.lorcast.com/v0';
 const OUT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'tcgplayer');
 const CONCURRENCY = 4;
-
-// Hand-fixes for sets whose names differ too much to match automatically.
-// tcgdexSetId -> [tcgplayer groupId, ...]
-const OVERRIDES = {
-  "30th-c": [24837], // ME: 30th Celebration Classic Collection
-  bwp: [1407],       // Black and White Promos
-  dpp: [1421],       // Diamond and Pearl Promos
-  xyp: [1451],       // XY Promos
-  rc: [1465],        // Legendary Treasures: Radiant Collection
-  mfb: [23330],      // My First Battle
-};
-// Subsets TCGPlayer lists as their own group but TCGdex folds into the main set.
-const SUBSET_SUFFIXES = ["galariangallery", "shinyvault", "trainergallery", "radiantcollection"];
 
 async function getJSON(url, tries = 3) {
   for (let i = 1; ; i++) {
@@ -48,6 +36,8 @@ async function getJSON(url, tries = 3) {
   }
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 async function mapLimit(items, limit, fn) {
   const out = new Array(items.length);
   let next = 0;
@@ -60,46 +50,21 @@ async function mapLimit(items, limit, fn) {
   return out;
 }
 
-// "SV03: Obsidian Flames" -> "obsidianflames"; "Pokémon GO" -> "pokemongo"
-function normalize(name) {
-  return name
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/^[A-Za-z0-9 .]{1,10}:\s*/, '')   // TCGPlayer series prefix like "SV: " / "SWSH12: " / "ME: "
-    .toLowerCase()
-    .replace(/&/g, 'and')
-    .replace(/[^a-z0-9]/g, '');
-}
-
-// "158/128" -> "158"; "TG01/TG30" -> "tg1"; "SWSH001" -> "swsh1"; "025" -> "25"
-export function normNumber(n) {
-  return String(n).split('/')[0].trim().toLowerCase().replace(/^([a-z-]*)0+(?=\d)/, '$1');
-}
-
-async function main() {
-  if (process.argv.includes("--if-missing")) {
-    try { await access(path.join(OUT, "index.json")); return; } catch { /* not built yet — sync now */ }
-  }
-  const started = Date.now();
-  console.log('Fetching TCGPlayer groups and TCGdex sets…');
-  const [{ results: groups }, tcgdexSets] = await Promise.all([
-    getJSON(`${TCGCSV}/groups`),
-    getJSON(`${TCGDEX}/sets`),
-  ]);
-  console.log(`${groups.length} TCGPlayer groups, ${tcgdexSets.length} TCGdex sets`);
-
-  // Download every group's products + prices and keep only single cards (ones with a Number).
-  await rm(OUT, { recursive: true, force: true });
-  await mkdir(path.join(OUT, 'g'), { recursive: true });
+// Downloads every group's products + prices for a TCGPlayer category into
+// <out>/g/, keeping only single cards (ones with a Number).
+async function downloadCategory(category, out) {
+  const { results: groups } = await getJSON(`${TCGCSV}/${category}/groups`);
+  await mkdir(path.join(out, 'g'), { recursive: true });
   const productToGroup = new Map();
   let cardCount = 0;
   await mapLimit(groups, CONCURRENCY, async (g, i) => {
     const [products, prices] = await Promise.all([
-      getJSON(`${TCGCSV}/${g.groupId}/products`),
-      getJSON(`${TCGCSV}/${g.groupId}/prices`).catch(() => ({ results: [] })),
+      getJSON(`${TCGCSV}/${category}/${g.groupId}/products`),
+      getJSON(`${TCGCSV}/${category}/${g.groupId}/prices`).catch(() => ({ results: [] })),
     ]);
     const market = new Map();
     for (const p of prices.results || []) {
-      // One entry per printing (Normal / Holofoil / Reverse Holofoil / 1st Edition…) — each is
+      // One entry per printing (Normal / Holofoil / Reverse Holofoil / Cold Foil…) — each is
       // its own slot in a master set and has its own price.
       if (!market.has(p.productId)) market.set(p.productId, {});
       market.get(p.productId)[p.subTypeName] = p.marketPrice ?? p.midPrice ?? null;
@@ -112,16 +77,51 @@ async function main() {
       productToGroup.set(p.productId, g.groupId);
     }
     cardCount += rows.length;
-    if (rows.length) await writeFile(path.join(OUT, 'g', `${g.groupId}.json`), JSON.stringify(rows));
+    if (rows.length) await writeFile(path.join(out, 'g', `${g.groupId}.json`), JSON.stringify(rows));
     g.cardRows = rows.length;
-    if ((i + 1) % 25 === 0) console.log(`  …${i + 1}/${groups.length} groups`);
+    if ((i + 1) % 50 === 0) console.log(`  …${i + 1}/${groups.length} groups`);
   });
-  const withCards = groups.filter((g) => g.cardRows > 0);
+  return { groups, withCards: groups.filter((g) => g.cardRows > 0), productToGroup, cardCount };
+}
+
+async function writeIndex(out, sets) {
+  await writeFile(path.join(out, 'index.json'), JSON.stringify({ generatedAt: new Date().toISOString(), sets }));
+}
+
+// ---------------------------------------------------------------- Pokémon (TCGdex)
+
+// Hand-fixes for sets whose names differ too much to match automatically.
+// tcgdexSetId -> [tcgplayer groupId, ...]
+const POKEMON_OVERRIDES = {
+  '30th-c': [24837], // ME: 30th Celebration Classic Collection
+  bwp: [1407],       // Black and White Promos
+  dpp: [1421],       // Diamond and Pearl Promos
+  xyp: [1451],       // XY Promos
+  rc: [1465],        // Legendary Treasures: Radiant Collection
+  mfb: [23330],      // My First Battle
+};
+// Subsets TCGPlayer lists as their own group but TCGdex folds into the main set.
+const SUBSET_SUFFIXES = ['galariangallery', 'shinyvault', 'trainergallery', 'radiantcollection'];
+
+// "SV03: Obsidian Flames" -> "obsidianflames"; "Pokémon GO" -> "pokemongo"
+function normalize(name) {
+  return name
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/^[A-Za-z0-9 .]{1,10}:\s*/, '')   // TCGPlayer series prefix like "SV: " / "SWSH12: " / "ME: "
+    .toLowerCase()
+    .replace(/&/g, 'and')
+    .replace(/[^a-z0-9]/g, '');
+}
+
+async function syncPokemon() {
+  const out = path.join(OUT, 'pokemon');
+  const [cat, tcgdexSets] = await Promise.all([downloadCategory(3, out), getJSON(`${TCGDEX}/sets`)]);
+  const { withCards, productToGroup } = cat;
 
   // Match TCGdex sets to TCGPlayer groups by normalized name.
   const byNorm = new Map();
   for (const g of withCards) {
-    for (const k of new Set([normalize(g.name), normalize(g.name.replace(/^EX /, ""))])) {
+    for (const k of new Set([normalize(g.name), normalize(g.name.replace(/^EX /, ''))])) {
       if (!byNorm.has(k)) byNorm.set(k, []);
       byNorm.get(k).push(g.groupId);
     }
@@ -129,7 +129,7 @@ async function main() {
   const sets = {};
   const unmatched = [];
   for (const s of tcgdexSets) {
-    if (OVERRIDES[s.id]) { sets[s.id] = OVERRIDES[s.id]; continue; }
+    if (POKEMON_OVERRIDES[s.id]) { sets[s.id] = POKEMON_OVERRIDES[s.id]; continue; }
     const k = normalize(s.name);
     const ids = new Set(byNorm.get(k) || []);
     // Subsets TCGPlayer lists separately but TCGdex folds into the main set
@@ -164,10 +164,60 @@ async function main() {
     else stillUnmatched.push(`${s.id} (${s.name})`);
   });
 
-  await writeFile(path.join(OUT, 'index.json'), JSON.stringify({ generatedAt: new Date().toISOString(), sets }));
-  console.log(`\nWrote ${cardCount} cards across ${withCards.length} groups; matched ${Object.keys(sets).length}/${tcgdexSets.length - pocket.size} TCGdex sets in ${((Date.now() - started) / 1000).toFixed(0)}s.`);
-  if (stillUnmatched.length) {
-    console.log(`Unmatched (${stillUnmatched.length}) — add to OVERRIDES if they matter:\n  ${stillUnmatched.sort().join('\n  ')}`);
+  await writeIndex(out, sets);
+  return { ...cat, matched: Object.keys(sets).length, total: tcgdexSets.length - pocket.size, unmatched: stillUnmatched };
+}
+
+// ---------------------------------------------------------------- Lorcana (Lorcast)
+
+// Lorcast gives every card its TCGPlayer product id, so a set's groups are simply
+// whichever groups its cards' products live in — no name matching needed.
+async function syncLorcana() {
+  const out = path.join(OUT, 'lorcana');
+  const cat = await downloadCategory(71, out);
+  const { results: lorcastSets } = await getJSON(`${LORCAST}/sets`);
+  const sets = {};
+  const unmatched = [];
+  for (const s of lorcastSets) {
+    await sleep(100); // Lorcast asks for 50–100ms between requests
+    const cards = await getJSON(`${LORCAST}/sets/${encodeURIComponent(s.code)}/cards`).catch(() => []);
+    const votes = new Map();
+    for (const c of cards) {
+      const gid = cat.productToGroup.get(c.tcgplayer_id);
+      if (gid) votes.set(gid, (votes.get(gid) || 0) + 1);
+    }
+    if (votes.size) {
+      sets[s.code] = [...votes].sort((a, b) => b[1] - a[1]).map(([g]) => g);
+      continue;
+    }
+    // Brand-new sets often have no TCGPlayer ids on Lorcast yet — match the group by
+    // name so the set works as soon as TCGPlayer lists it (cards then match by number).
+    const byName = cat.withCards.filter((g) => normalize(g.name) === normalize(s.name)).map((g) => g.groupId);
+    if (byName.length) sets[s.code] = byName;
+    else unmatched.push(`${s.code} (${s.name})`);
+  }
+  await writeIndex(out, sets);
+  return { ...cat, matched: Object.keys(sets).length, total: lorcastSets.length, unmatched };
+}
+
+// ----------------------------------------------------------------
+
+const GAMES = { pokemon: syncPokemon, lorcana: syncLorcana };
+
+async function main() {
+  if (process.argv.includes('--if-missing')) {
+    try {
+      await Promise.all(Object.keys(GAMES).map((g) => access(path.join(OUT, g, 'index.json'))));
+      return;
+    } catch { /* not built yet — sync now */ }
+  }
+  await rm(OUT, { recursive: true, force: true });
+  for (const [game, sync] of Object.entries(GAMES)) {
+    const started = Date.now();
+    console.log(`\n[${game}] syncing…`);
+    const r = await sync();
+    console.log(`[${game}] ${r.cardCount} cards across ${r.withCards.length} groups; matched ${r.matched}/${r.total} sets in ${((Date.now() - started) / 1000).toFixed(0)}s.`);
+    if (r.unmatched.length) console.log(`[${game}] unmatched (${r.unmatched.length}):\n  ${r.unmatched.sort().join('\n  ')}`);
   }
 }
 

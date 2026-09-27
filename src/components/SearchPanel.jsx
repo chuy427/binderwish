@@ -9,7 +9,8 @@ import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import AddIcon from '@mui/icons-material/Add';
 import PrintIcon from '@mui/icons-material/Print';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
-import { cardImage, loadSetCards, searchByName, setSlots, slotsForSearch } from '../api';
+import { cardImage, setSlots, slotsForSearch } from '../catalog';
+import { GAME_LIST } from '../games';
 
 const gridSx = {
   display: 'grid',
@@ -18,7 +19,7 @@ const gridSx = {
 };
 const money = (n) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export default function SearchPanel({ initialSetId, initialQuery, onSearched, setsInfo, variants, queuedKeys, owned, onToggleOwned, onAdd, onAddMany }) {
+export default function SearchPanel({ game, onGameChange, initialSetId, initialQuery, onSearched, setsInfo, variants, queuedKeys, owned, onToggleOwned, onAdd, onAddMany }) {
   const [query, setQuery] = useState(initialQuery || '');
   const [set, setSet] = useState(null);          // { id, name } | null
   const [slots, setSlotsState] = useState([]);
@@ -36,15 +37,15 @@ export default function SearchPanel({ initialSetId, initialQuery, onSearched, se
     setError(null);
     try {
       if (s) {
-        const all = await setSlots(s.id, setsInfo, { variants });
+        const all = await setSlots(game, s.id, setsInfo, { variants });
         const needle = q.trim().toLowerCase();
         setSlotsState(needle ? all.filter((sl) => sl.name.toLowerCase().includes(needle)) : all);
         setHasMore(false);
       } else {
-        const r = await searchByName(q.trim(), nextPage, setsInfo.pocketIds);
+        const r = await game.searchByName(q.trim(), nextPage, setsInfo);
         const nextCards = nextPage === 1 ? r.cards : [...cards, ...r.cards];
         setCards(nextCards);
-        setSlotsState(await slotsForSearch(nextCards, setsInfo, { variants }));
+        setSlotsState(await slotsForSearch(game, nextCards, setsInfo, { variants }));
         setHasMore(r.hasMore);
       }
       setPage(nextPage);
@@ -69,8 +70,6 @@ export default function SearchPanel({ initialSetId, initialQuery, onSearched, se
   useEffect(() => { if (set) run({ s: set }); }, [set]); // eslint-disable-line react-hooks/exhaustive-deps
   // Re-expand results when the master-set (variants) option changes.
   useEffect(() => { if (searched) run({ q: searched.query, s: searched.set, nextPage: 1 }); }, [variants]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Warm the set list so the first browse is instant.
-  useEffect(() => { if (set) loadSetCards(set.id, setsInfo.pocketIds).catch(() => {}); }, [set, setsInfo]);
 
   const stats = useMemo(() => {
     let have = 0, missingValue = 0;
@@ -88,6 +87,14 @@ export default function SearchPanel({ initialSetId, initialQuery, onSearched, se
 
   return (
     <Paper variant="outlined" sx={{ p: { xs: 2, sm: 3 } }}>
+      <ToggleButtonGroup
+        exclusive size="small" color="primary" sx={{ mb: 2 }}
+        value={game.id}
+        onChange={(_, v) => v && v !== game.id && onGameChange(v)}
+        aria-label="Game"
+      >
+        {GAME_LIST.map((g) => <ToggleButton key={g.id} value={g.id} sx={{ px: 2 }}>{g.name}</ToggleButton>)}
+      </ToggleButtonGroup>
       <Stack
         component="form"
         direction="row"
@@ -111,13 +118,13 @@ export default function SearchPanel({ initialSetId, initialQuery, onSearched, se
               <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>{o.id}</Typography>
             </li>
           )}
-          renderInput={(params) => <TextField {...params} label="Set you're collecting" placeholder="e.g. Prismatic Evolutions" />}
+          renderInput={(params) => <TextField {...params} label={`${game.name} set you're collecting`} placeholder={`e.g. ${game.quickPicks[0]}`} />}
         />
         <TextField
           sx={{ flex: '1 1 200px' }}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={set ? `Filter ${set.name}…` : 'e.g. Charizard ex'}
+          placeholder={set ? `Filter ${set.name}…` : `e.g. ${game.exampleCard}`}
           label={set ? 'Filter by name (optional)' : 'Or search a card name'}
           type="search"
           slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> } }}

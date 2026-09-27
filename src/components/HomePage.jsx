@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
+  ToggleButton, ToggleButtonGroup,
   Autocomplete, Box, Button, Card, CardContent, Chip, Container, InputAdornment, Link, Paper, Stack, TextField, Typography,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
@@ -12,6 +13,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import BinderHero from './BinderHero';
 import PlaceholderCard from './PlaceholderCard';
 import VendorSection from './VendorSection';
+import { GAME_LIST, getGame } from '../games';
 
 const STEPS = [
   { icon: <LayersIcon />, title: 'Pick your set', body: 'See every card in the set — and for master sets, every variant: reverse holos, Poké Ball and Master Ball patterns, 1st Editions.' },
@@ -98,14 +100,20 @@ function PocketVisual({ kind }) {
   return <Box sx={pocket} />;
 }
 
-export default function HomePage({ setsInfo, onStart }) {
+const EMPTY = { sets: [], loaded: false };
+
+export default function HomePage({ setsByGame, loadGameSets, onStart }) {
   const [input, setInput] = useState('');
   const [value, setValue] = useState(null);
+  const [gameId, setGameId] = useState('pokemon');
+  const game = getGame(gameId);
+  const setsInfo = setsByGame[gameId] || EMPTY;
+  useEffect(() => { loadGameSets(gameId); }, [gameId, loadGameSets]);
 
   function start(v = value, text = input) {
-    if (v && typeof v === 'object') onStart({ set: v, query: '' });
-    else if (text.trim()) onStart({ set: null, query: text.trim() });
-    else onStart({ set: null, query: '' });
+    if (v && typeof v === 'object') onStart({ game: gameId, set: v, query: '' });
+    else if (text.trim()) onStart({ game: gameId, set: null, query: text.trim() });
+    else onStart({ game: gameId, set: null, query: '' });
   }
 
   return (
@@ -123,6 +131,16 @@ export default function HomePage({ setsInfo, onStart }) {
             and has a QR code that opens that exact card on TCGPlayer.
           </Typography>
 
+          <ToggleButtonGroup
+            exclusive size="small" value={gameId}
+            onChange={(_, v) => { if (v) { setGameId(v); setValue(null); setInput(''); } }}
+            aria-label="Game"
+            sx={{ mb: 1.5, bgcolor: 'rgba(255,255,255,.1)', backdropFilter: 'blur(6px)', borderRadius: 99, p: 0.5,
+              '& .MuiToggleButton-root': { color: 'rgba(255,255,255,.85)', border: 0, borderRadius: '99px !important', px: 2.5, py: 0.5 },
+              '& .Mui-selected': { bgcolor: 'rgba(255,255,255,.95) !important', color: '#3b2f7a !important' } }}
+          >
+            {GAME_LIST.map((g) => <ToggleButton key={g.id} value={g.id}>{g.name}</ToggleButton>)}
+          </ToggleButtonGroup>
           <Paper
             component="form"
             elevation={12}
@@ -151,7 +169,7 @@ export default function HomePage({ setsInfo, onStart }) {
                 <TextField
                   {...params}
                   variant="standard"
-                  placeholder="What set are you collecting? (or a card name)"
+                  placeholder={`What ${game.name} set are you collecting? (or a card name)`}
                   slotProps={{
                     ...params.slotProps,
                     input: {
@@ -169,7 +187,7 @@ export default function HomePage({ setsInfo, onStart }) {
             </Button>
           </Paper>
           <Stack direction="row" spacing={1} useFlexGap sx={{ justifyContent: 'center', flexWrap: 'wrap', mt: 2 }}>
-            {['Prismatic Evolutions', '151', '30th Celebration', 'Surging Sparks'].map((name) => {
+            {game.quickPicks.map((name) => {
               const s = setsInfo.sets.find((x) => x.name === name);
               return s ? (
                 <Chip key={name} label={name} onClick={() => start(s)} clickable
@@ -266,14 +284,14 @@ export default function HomePage({ setsInfo, onStart }) {
       </Container>
 
       {/* ---------- Vendors ---------- */}
-      <VendorSection setsInfo={setsInfo} onStart={onStart} />
+      <VendorSection setsInfo={setsByGame.pokemon || EMPTY} onStart={() => onStart({ game: 'pokemon', set: null, query: '' })} />
 
       {/* ---------- Closing CTA ---------- */}
       <Box sx={{ py: { xs: 6, md: 8 }, textAlign: 'center', background: 'linear-gradient(135deg, #3b2f7a, #6d4aff)', color: '#fff' }}>
         <Container maxWidth="sm">
           <Typography variant="h4" component="h2" sx={{ fontWeight: 800, mb: 1 }}>Ready to fill your binder?</Typography>
           <Typography sx={{ opacity: 0.9, mb: 3 }}>Free, no account needed. Your checklist is saved in your browser.</Typography>
-          <Button variant="contained" size="large" onClick={() => start(null, '')}
+          <Button variant="contained" size="large" onClick={() => onStart({ game: gameId, set: null, query: '' })}
             sx={{ bgcolor: '#fff', color: '#3b2f7a', borderRadius: 99, px: 4, '&:hover': { bgcolor: '#f0ecff' } }}>
             Start your checklist
           </Button>
