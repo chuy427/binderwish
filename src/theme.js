@@ -6,15 +6,15 @@ const theme = createTheme({
   colorSchemes: {
     light: {
       palette: {
-        primary: { main: '#E3350D' },
-        secondary: { main: '#2A75BB' },
-        background: { default: '#F5F6FA', paper: '#FFFFFF' },
+        primary: { main: '#6D4AFF' },
+        secondary: { main: '#FF7A59' },
+        background: { default: '#F6F5FB', paper: '#FFFFFF' },
       },
     },
     dark: {
       palette: {
-        primary: { main: '#FF6A45' },
-        secondary: { main: '#6FA8E0' },
+        primary: { main: '#A48BFF' },
+        secondary: { main: '#FF9A80' },
         background: { default: '#121318', paper: '#1C1D24' },
       },
     },

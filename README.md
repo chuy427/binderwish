@@ -1,11 +1,25 @@
-# Proxydex
+# BinderWish
 
-Print Pokémon TCG proxy cards with a QR code that opens each card's TCGPlayer
-product page, for quick price checks.
+Print card-sized placeholders for the Pokémon TCG cards missing from your
+master set binder. Each placeholder shows the card's number, name and variant
+over faded "ghost" art, plus a QR code to the exact TCGPlayer listing — so when
+you flip through the binder you can scan a gap and buy the real card.
 
-- Card search, set browsing and images: [TCGdex](https://tcgdex.dev) (called from the browser, cached locally).
-- TCGPlayer product IDs and prices for cards TCGdex hasn't linked: a static
-  catalog built from [tcgcsv.com](https://tcgcsv.com) by `scripts/sync-tcgplayer.mjs`.
+- **Master sets**: every printing gets its own slot — reverse holos, Poké Ball /
+  Master Ball patterns, 1st Edition, etc. — each linking to its own listing.
+- **Owned checklist**: mark what you have; see progress and what's left to buy,
+  and print placeholders only for the missing slots. Marking a card owned takes
+  it off the print sheet. (Saved in your browser.)
+- **Binder order**: prints 9 per page in set order. Optionally each page mirrors
+  a real 9-pocket binder page, with blanks for slots you're not printing.
+- Placeholders are deliberately unmistakable ("PLACEHOLDER · NOT A REAL CARD").
+
+## Data
+
+- Card lists, images and search: [TCGdex](https://tcgdex.dev) (called from the browser, cached locally).
+- Variants, TCGPlayer product IDs and per-printing prices: a static catalog built
+  from [tcgcsv.com](https://tcgcsv.com) (a daily mirror of TCGPlayer's catalog)
+  by `scripts/sync-tcgplayer.mjs`.
 
 ## Development
 
@@ -27,6 +41,6 @@ no commits; re-enable it from the Actions tab if that happens.
 
 ## Disclaimer
 
-Proxies are for casual play and collection planning only — not for sale or
-sanctioned tournaments. Pokémon and all related names are trademarks of
+Placeholders are binder fillers for cards you're still collecting — not playable,
+tradeable or sellable cards. Pokémon and all related names are trademarks of
 Nintendo, Creatures Inc. and GAME FREAK inc. Not affiliated.

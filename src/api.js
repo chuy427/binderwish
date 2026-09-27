@@ -72,8 +72,9 @@ export function setIdFromCardId(cardId) {
   return cardId.slice(0, cardId.lastIndexOf('-'));
 }
 
-// Returns { sets: [{id, name}] newest first, pocketIds: Set } — TCG Pocket is
-// digital-only (no physical cards / TCGPlayer listings), so it's excluded.
+
+// Returns the set list (newest first) plus lookups. TCG Pocket is digital-only
+// (no physical cards / TCGPlayer listings), so it's excluded.
 export async function loadSets() {
   const [sets, pocket] = await Promise.all([
     getJSON(`${API}/sets`, TTL.sets),
@@ -83,6 +84,8 @@ export async function loadSets() {
   return {
     sets: sets.slice().reverse().filter((s) => !pocketIds.has(s.id)).map((s) => ({ id: s.id, name: s.name })),
     names: new Map(sets.map((s) => [s.id, s.name])),
+    // Printed set size ("006/165" — the 165), used on placeholders.
+    official: new Map(sets.map((s) => [s.id, s.cardCount?.official || 0])),
     pocketIds,
   };
 }
@@ -100,16 +103,15 @@ export async function searchByName(query, page, pocketIds) {
   return { cards: raw.filter((c) => !isPocket(c, pocketIds)), hasMore: raw.length === PAGE_SIZE };
 }
 
-// A whole set (≤ a few hundred cards) in one cached request, optionally filtered by name locally.
-export async function loadSetCards(setId, query, pocketIds) {
+// A whole set (≤ a few hundred cards) in one cached request, in set order.
+export async function loadSetCards(setId, pocketIds) {
   const data = await getJSON(`${API}/sets/${encodeURIComponent(setId)}`, TTL.sets);
-  const q = query.trim().toLowerCase();
-  return (data.cards || []).filter((c) => !isPocket(c, pocketIds) && (!q || c.name.toLowerCase().includes(q)));
+  return (data.cards || []).filter((c) => !isPocket(c, pocketIds));
 }
 
 // TCGdex exposes the TCGPlayer product id in a few places depending on the card
 // and response version — check each.
-function tcgplayerId(detail) {
+function tcgdexTcgplayerId(detail) {
   if (detail.thirdParty?.tcgplayer) return detail.thirdParty.tcgplayer;
   for (const v of detail.variants_detailed || []) {
     if (v.thirdParty?.tcgplayer) return v.thirdParty.tcgplayer;
@@ -120,7 +122,7 @@ function tcgplayerId(detail) {
   return null;
 }
 
-function marketPrice(detail) {
+function tcgdexMarketPrice(detail) {
   const tp = detail.pricing?.tcgplayer;
   if (!tp) return null;
   for (const variant of ['holofoil', 'normal', 'reverse-holofoil', 'reverseHolofoil', '1stEditionHolofoil', '1st-edition-holofoil']) {
@@ -134,8 +136,9 @@ function marketPrice(detail) {
 }
 
 // ---------- Bundled TCGPlayer catalog (built by scripts/sync-tcgplayer.mjs) ----------
-// TCGdex hasn't linked every card to TCGPlayer (new sets especially), so fall
-// back to matching set + card number against a snapshot of TCGPlayer's catalog.
+// Maps each TCGdex card to its TCGPlayer products and printings — the source of
+// truth for master-set variants (reverse holos, Poké Ball / Master Ball patterns…)
+// and their prices. Rows: [number, productId, name, { printing: price }].
 const CATALOG = `${import.meta.env.BASE_URL}tcgplayer`;
 
 // "158/128" -> "158"; "TG01/TG30" -> "tg1"; "025" -> "25" (mirrors the sync script)
@@ -144,52 +147,144 @@ const normNumber = (n) => String(n).split('/')[0].trim().toLowerCase().replace(/
 const normName = (n) => String(n).split(' - ')[0].replace(/\([^)]*\)/g, '')
   .normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
-export async function catalogLookup(setId, localId, name) {
-  const index = await getJSON(`${CATALOG}/index.json`, TTL.card);
+async function catalogRows(setId) {
+  const index = await getJSON(`${CATALOG}/index.json`, TTL.card).catch(() => ({}));
   const groups = index.sets?.[setId];
-  if (!groups?.length) return null;
-  const all = (await Promise.all(groups.map((g) => getJSON(`${CATALOG}/g/${g}.json`, TTL.card).catch(() => [])))).flat();
+  if (!groups?.length) return [];
+  return (await Promise.all(groups.map((g) => getJSON(`${CATALOG}/g/${g}.json`, TTL.card).catch(() => [])))).flat();
+}
+
+// All TCGPlayer products for one TCGdex card: the plain product first, then any
+// same-numbered variants like "(Poke Ball Pattern)".
+function matchProducts(rows, localId, name) {
   const nameMatches = (r) => normName(r[2]) === normName(name);
-  const rows = all.filter((r) => normNumber(r[0]) === normNumber(localId));
-  // Several products can share a number (special-pattern reprints, etc.): prefer a
-  // name match, then the plain printing (no parenthetical variant in its name).
-  const named = rows.filter(nameMatches);
-  let pool = named.length ? named : rows.length === 1 ? rows : [];
+  const byNumber = rows.filter((r) => normNumber(r[0]) === normNumber(localId));
+  const named = byNumber.filter(nameMatches);
+  let pool = named.length ? named : byNumber.length === 1 ? byNumber : [];
   // Numbering can differ between sources (e.g. Classic Collection reprints keep their
   // original numbers on TCGPlayer) — fall back to the name when it's unique in the set.
   if (!pool.length) {
-    const byName = all.filter(nameMatches);
-    if (byName.length === 1) pool = byName;
+    const byName = rows.filter(nameMatches);
+    const numbers = new Set(byName.map((r) => normNumber(r[0])));
+    if (numbers.size === 1) pool = byName;
     // Two-part LEGEND cards are sold as separate "(Top)" / "(Bottom)" halves.
     else pool = byName.filter((r) => /\(Top\)/i.test(r[2]));
   }
-  const best = pool.find((r) => !/\(/.test(r[2])) || pool[0];
-  return best ? { tcgplayerId: best[1], price: best[3] } : null;
+  const isPlain = (r) => !/\(/.test(r[2]);
+  return [...pool.filter(isPlain), ...pool.filter((r) => !isPlain(r))];
 }
 
-// Fetches the fields list endpoints don't include: TCGPlayer id, price, set name.
+const PRINTING_ORDER = ['1st Edition Holofoil', '1st Edition', 'Unlimited Holofoil', 'Unlimited', 'Normal', 'Holofoil', 'Reverse Holofoil'];
+const PRINTING_LABEL = {
+  '1st Edition Holofoil': '1st Edition Holo',
+  '1st Edition': '1st Edition',
+  'Unlimited Holofoil': 'Unlimited Holo',
+  Unlimited: 'Unlimited',
+  Normal: 'Normal',
+  Holofoil: 'Holo',
+  'Reverse Holofoil': 'Reverse Holo',
+};
+const printingRank = (p) => { const i = PRINTING_ORDER.indexOf(p); return i < 0 ? 99 : i; };
+const variantName = (productName) => (productName.match(/\(([^)]*)\)/)?.[1] || '')
+  .replace(/Poke Ball/i, 'Poké Ball');
+
+// Expands products into binder slots, one per printing, e.g. Exeggcute #001 →
+// Normal, Reverse Holo, Poké Ball Pattern, Master Ball Pattern.
+function productVariants(products) {
+  const out = [];
+  products.forEach((row, i) => {
+    const [, productId, productName, prices] = row;
+    const printings = Object.keys(prices || {}).sort((a, b) => printingRank(a) - printingRank(b));
+    const list = printings.length ? printings : [null];
+    // The first product is the card itself (even if TCGPlayer's name carries a note
+    // like "(Delta Species)"); later ones are pattern/stamp variants.
+    const special = i > 0 ? variantName(productName) : '';
+    for (const printing of list) {
+      const printLabel = printing ? (PRINTING_LABEL[printing] || printing) : '';
+      out.push({
+        variantId: `${productId}:${printing || ''}`,
+        tcgplayerId: productId,
+        // Only pin the printing in the link when the product page offers several.
+        printing: list.length > 1 ? printing : null,
+        label: special ? (list.length > 1 ? `${special} · ${printLabel}` : special) : (printLabel || 'Standard'),
+        price: printing ? prices[printing] ?? null : null,
+      });
+    }
+  });
+  return out;
+}
+
+function makeSlot(card, setId, setsInfo, variant, order) {
+  const official = setsInfo.official?.get(setId);
+  return {
+    key: `${card.id}|${variant ? variant.variantId : 'card'}`,
+    cardId: card.id,
+    setId,
+    setName: setsInfo.names?.get(setId) || setId,
+    name: card.name,
+    number: card.localId,
+    numberLabel: official && /^\d+$/.test(card.localId) ? `${card.localId}/${String(official).padStart(3, '0')}` : card.localId,
+    image: card.image || null,
+    tcgplayerId: variant?.tcgplayerId ?? null,
+    printing: variant?.printing ?? null,
+    variantLabel: variant?.label ?? null,
+    price: variant?.price ?? null,
+    // No catalog match — look the card up on TCGdex when it's added.
+    needsLookup: !variant,
+    order,
+  };
+}
+
+// Binder slots for a list of cards from one set, in set order. With
+// `variants` off, each card gets a single slot (its first printing).
+export async function slotsForCards(cards, setId, setsInfo, { variants = true } = {}) {
+  const rows = await catalogRows(setId);
+  const slots = [];
+  cards.forEach((card, ci) => {
+    const vs = rows.length ? productVariants(matchProducts(rows, card.localId, card.name)) : [];
+    const list = vs.length ? (variants ? vs : vs.slice(0, 1)) : [null];
+    list.forEach((v, vi) => slots.push(makeSlot(card, setId, setsInfo, v, ci * 100 + vi)));
+  });
+  return slots;
+}
+
+// Every slot in a set — the full master set (or one per card with variants off).
+export async function setSlots(setId, setsInfo, opts) {
+  const cards = await loadSetCards(setId, setsInfo.pocketIds);
+  return slotsForCards(cards, setId, setsInfo, opts);
+}
+
+// Slots for name-search results, which span many sets.
+export async function slotsForSearch(cards, setsInfo, opts) {
+  const bySet = new Map();
+  cards.forEach((c) => {
+    const s = setIdFromCardId(c.id);
+    if (!bySet.has(s)) bySet.set(s, []);
+    bySet.get(s).push(c);
+  });
+  const perSet = new Map();
+  await Promise.all([...bySet].map(async ([s, cs]) => perSet.set(s, await slotsForCards(cs, s, setsInfo, opts))));
+  // Keep the API's result order.
+  return cards.flatMap((c) => perSet.get(setIdFromCardId(c.id)).filter((sl) => sl.cardId === c.id));
+}
+
+// For cards the catalog couldn't match: TCGPlayer id + price from TCGdex.
 export async function fetchCardExtras(cardId) {
   const detail = await getJSON(`${API}/cards/${encodeURIComponent(cardId)}`, TTL.card);
-  let id = tcgplayerId(detail);
-  let price = marketPrice(detail);
-  if (!id || price == null) {
-    const hit = await catalogLookup(detail.set?.id || setIdFromCardId(cardId), detail.localId, detail.name).catch(() => null);
-    if (hit) {
-      id = id || hit.tcgplayerId;
-      if (price == null && hit.tcgplayerId === id) price = hit.price;
-    }
-  }
   return {
-    tcgplayerId: id,
-    price,
+    tcgplayerId: tcgdexTcgplayerId(detail),
+    price: tcgdexMarketPrice(detail),
     setName: detail.set?.name,
     image: detail.image,
   };
 }
 
-export function tcgplayerUrl(card) {
-  if (card.tcgplayerId) return `https://www.tcgplayer.com/product/${card.tcgplayerId}`;
-  const q = encodeURIComponent(`${card.name} ${card.number || ''}`.trim());
+export function tcgplayerUrl(slot) {
+  if (slot.tcgplayerId) {
+    const printing = slot.printing ? `?Printing=${encodeURIComponent(slot.printing).replace(/%20/g, '+')}` : '';
+    return `https://www.tcgplayer.com/product/${slot.tcgplayerId}${printing}`;
+  }
+  const q = encodeURIComponent(`${slot.name} ${slot.number || ''}`.trim());
   return `https://www.tcgplayer.com/search/pokemon/product?q=${q}`;
 }
 

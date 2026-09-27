@@ -1,29 +1,34 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
-  Alert, Autocomplete, Box, Button, Card, CardActionArea, CardContent, Chip, InputAdornment,
-  Paper, Skeleton, Stack, TextField, Typography,
+  Alert, Autocomplete, Box, Button, Card, CardActionArea, Chip, IconButton, InputAdornment,
+  LinearProgress, Paper, Skeleton, Stack, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import AddIcon from '@mui/icons-material/Add';
-import LibraryAddIcon from '@mui/icons-material/LibraryAdd';
-import { cardImage, loadSetCards, searchByName, setIdFromCardId } from '../api';
+import PrintIcon from '@mui/icons-material/Print';
+import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
+import { cardImage, loadSetCards, searchByName, setSlots, slotsForSearch } from '../api';
 
 const gridSx = {
   display: 'grid',
   gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
   gap: 2,
 };
+const money = (n) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export default function SearchPanel({ setsInfo, queuedIds, onAdd, onAddMany }) {
+export default function SearchPanel({ setsInfo, variants, queuedKeys, owned, onToggleOwned, onAdd, onAddMany }) {
   const [query, setQuery] = useState('');
   const [set, setSet] = useState(null);          // { id, name } | null
-  const [results, setResults] = useState([]);
+  const [slots, setSlotsState] = useState([]);
+  const [cards, setCards] = useState([]);        // raw name-search results (for paging)
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [searched, setSearched] = useState(null); // { query, set } of the last search
+  const [filter, setFilter] = useState('all');    // all | missing | owned
 
   async function run({ q = query, s = set, nextPage = 1 } = {}) {
     if (!q.trim() && !s) return;
@@ -31,11 +36,15 @@ export default function SearchPanel({ setsInfo, queuedIds, onAdd, onAddMany }) {
     setError(null);
     try {
       if (s) {
-        setResults(await loadSetCards(s.id, q, setsInfo.pocketIds));
+        const all = await setSlots(s.id, setsInfo, { variants });
+        const needle = q.trim().toLowerCase();
+        setSlotsState(needle ? all.filter((sl) => sl.name.toLowerCase().includes(needle)) : all);
         setHasMore(false);
       } else {
         const r = await searchByName(q.trim(), nextPage, setsInfo.pocketIds);
-        setResults((prev) => (nextPage === 1 ? r.cards : [...prev, ...r.cards]));
+        const nextCards = nextPage === 1 ? r.cards : [...cards, ...r.cards];
+        setCards(nextCards);
+        setSlotsState(await slotsForSearch(nextCards, setsInfo, { variants }));
         setHasMore(r.hasMore);
       }
       setPage(nextPage);
@@ -49,9 +58,24 @@ export default function SearchPanel({ setsInfo, queuedIds, onAdd, onAddMany }) {
 
   // Picking a set browses it immediately (narrowed by any name already typed).
   useEffect(() => { if (set) run({ s: set }); }, [set]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Re-expand results when the master-set (variants) option changes.
+  useEffect(() => { if (searched) run({ q: searched.query, s: searched.set, nextPage: 1 }); }, [variants]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Warm the set list so the first browse is instant.
+  useEffect(() => { if (set) loadSetCards(set.id, setsInfo.pocketIds).catch(() => {}); }, [set, setsInfo]);
 
-  const notYetAdded = results.filter((c) => !queuedIds.has(c.id));
-  const where = searched?.set ? ` in ${searched.set.name}` : '';
+  const stats = useMemo(() => {
+    let have = 0, missingValue = 0;
+    for (const s of slots) {
+      if (owned.has(s.key)) have++;
+      else if (s.price != null) missingValue += s.price;
+    }
+    return { have, total: slots.length, missingValue };
+  }, [slots, owned]);
+
+  const visible = slots.filter((s) => filter === 'all' || (filter === 'owned') === owned.has(s.key));
+  const missingNotQueued = slots.filter((s) => !owned.has(s.key) && !queuedKeys.has(s.key));
+  const setMode = !!searched?.set;
+  const pct = stats.total ? Math.round((stats.have / stats.total) * 100) : 0;
 
   return (
     <Paper variant="outlined" sx={{ p: { xs: 2, sm: 3 } }}>
@@ -59,26 +83,17 @@ export default function SearchPanel({ setsInfo, queuedIds, onAdd, onAddMany }) {
         component="form"
         direction="row"
         useFlexGap
-        sx={{ flexWrap: 'wrap' }}
         spacing={1.5}
+        sx={{ flexWrap: 'wrap' }}
         onSubmit={(e) => { e.preventDefault(); run(); }}
       >
-        <TextField
-          sx={{ flex: '2 1 240px' }}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={set ? `Filter ${set.name} by name…` : 'Card name, e.g. Charizard ex'}
-          label="Card name"
-          type="search"
-          slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> } }}
-        />
         <Autocomplete
-          sx={{ flex: '1 1 220px' }}
+          sx={{ flex: '2 1 260px' }}
           slotProps={{ paper: { elevation: 8 } }}
           options={setsInfo.sets}
           loading={!setsInfo.loaded}
           value={set}
-          onChange={(_, v) => { setSet(v); if (!v) { setResults([]); setSearched(null); } }}
+          onChange={(_, v) => { setSet(v); setFilter('all'); if (!v) { setSlotsState([]); setSearched(null); } }}
           getOptionLabel={(o) => o.name}
           isOptionEqualToValue={(a, b) => a.id === b.id}
           renderOption={(props, o) => (
@@ -87,38 +102,68 @@ export default function SearchPanel({ setsInfo, queuedIds, onAdd, onAddMany }) {
               <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>{o.id}</Typography>
             </li>
           )}
-          renderInput={(params) => <TextField {...params} label="Set (optional)" />}
+          renderInput={(params) => <TextField {...params} label="Set you're collecting" placeholder="e.g. Prismatic Evolutions" />}
+        />
+        <TextField
+          sx={{ flex: '1 1 200px' }}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={set ? `Filter ${set.name}…` : 'e.g. Charizard ex'}
+          label={set ? 'Filter by name (optional)' : 'Or search a card name'}
+          type="search"
+          slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> } }}
         />
         <Button type="submit" variant="contained" size="large" sx={{ px: 4, flex: { xs: '1 1 100%', sm: '0 0 auto' } }} disabled={!query.trim() && !set}>
-          Search
+          {set ? 'Browse' : 'Search'}
         </Button>
       </Stack>
 
-      <Stack direction="row" spacing={2} sx={{ alignItems: 'center', justifyContent: 'space-between', mt: 2.5, mb: 2, minHeight: 36 }}>
+      {setMode && !loading && slots.length > 0 && (
+        <Box sx={{ mt: 3, p: 2, borderRadius: 2, bgcolor: 'action.hover' }}>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ justifyContent: 'space-between', alignItems: { sm: 'center' } }}>
+            <Box>
+              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+                {searched.set.name}{variants ? ' master set' : ''}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                You own <b>{stats.have}</b> of {stats.total} ({pct}%)
+                {stats.missingValue > 0 && <> · missing cards ≈ <b>{money(stats.missingValue)}</b></>}
+              </Typography>
+            </Box>
+            <Button
+              variant="contained"
+              startIcon={<PlaylistAddIcon />}
+              disabled={missingNotQueued.length === 0}
+              onClick={() => onAddMany(missingNotQueued)}
+            >
+              {missingNotQueued.length ? `Add ${missingNotQueued.length} missing to print` : 'All missing cards added'}
+            </Button>
+          </Stack>
+          <LinearProgress variant="determinate" value={pct} sx={{ mt: 1.5, height: 8, borderRadius: 4 }} />
+        </Box>
+      )}
+
+      <Stack direction="row" spacing={2} useFlexGap sx={{ alignItems: 'center', justifyContent: 'space-between', mt: 2.5, mb: 2, minHeight: 36, flexWrap: 'wrap' }}>
         <Typography variant="body2" color="text.secondary">
-          {loading ? 'Searching…'
-            : searched ? (results.length
-              ? `${results.length}${hasMore ? '+' : ''} card${results.length === 1 ? '' : 's'}${where} — click to add to your print sheet.`
-              : `No cards found${where}. Try a shorter name.`)
-            : 'Search by name, pick a set to browse it, or both.'}
+          {loading ? 'Loading…'
+            : searched ? (slots.length
+              ? `${visible.length} slot${visible.length === 1 ? '' : 's'} — tap ○ to mark owned, tap a card to add it to your print sheet.`
+              : 'No cards found. Try a shorter name.')
+            : 'Pick the set you’re collecting to see every card and variant, or search a card by name.'}
         </Typography>
-        {searched?.set && results.length > 0 && !loading && (
-          <Button
-            variant="outlined"
-            startIcon={<LibraryAddIcon />}
-            disabled={notYetAdded.length === 0}
-            onClick={() => onAddMany(notYetAdded, searched.set.name)}
-            sx={{ flexShrink: 0 }}
-          >
-            {notYetAdded.length === 0 ? 'All added' : `Add all (${notYetAdded.length})`}
-          </Button>
+        {setMode && slots.length > 0 && (
+          <ToggleButtonGroup size="small" exclusive value={filter} onChange={(_, v) => v && setFilter(v)}>
+            <ToggleButton value="all">All</ToggleButton>
+            <ToggleButton value="missing">Missing</ToggleButton>
+            <ToggleButton value="owned">Owned</ToggleButton>
+          </ToggleButtonGroup>
         )}
       </Stack>
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
 
       <Box sx={gridSx}>
-        {loading && page === 1 && results.length === 0
+        {loading && page === 1
           ? Array.from({ length: 12 }, (_, i) => (
             <Box key={i}>
               <Skeleton variant="rounded" sx={{ width: '100%', height: 'auto', aspectRatio: '63 / 88' }} />
@@ -126,13 +171,14 @@ export default function SearchPanel({ setsInfo, queuedIds, onAdd, onAddMany }) {
               <Skeleton width="50%" />
             </Box>
           ))
-          : results.map((c) => (
-            <ResultCard
-              key={c.id}
-              card={c}
-              setName={searched?.set?.name || setsInfo.names.get(setIdFromCardId(c.id)) || setIdFromCardId(c.id)}
-              added={queuedIds.has(c.id)}
-              onClick={() => onAdd(c)}
+          : visible.map((s) => (
+            <SlotCard
+              key={s.key}
+              slot={s}
+              owned={owned.has(s.key)}
+              queued={queuedKeys.has(s.key)}
+              onToggleOwned={() => onToggleOwned(s.key)}
+              onAdd={() => onAdd(s)}
             />
           ))}
       </Box>
@@ -148,40 +194,65 @@ export default function SearchPanel({ setsInfo, queuedIds, onAdd, onAddMany }) {
   );
 }
 
-function ResultCard({ card, setName, added, onClick }) {
-  const src = cardImage(card);
+function SlotCard({ slot, owned, queued, onToggleOwned, onAdd }) {
+  const src = cardImage(slot);
   return (
     <Card
       sx={{
         position: 'relative',
-        borderColor: added ? 'primary.main' : undefined,
-        borderWidth: added ? 2 : 1,
+        borderColor: queued ? 'primary.main' : undefined,
+        borderWidth: queued ? 2 : 1,
         transition: 'transform .15s ease, box-shadow .15s ease',
         '&:hover': { transform: 'translateY(-3px)', boxShadow: 4 },
         '&:hover .add-chip': { opacity: 1 },
       }}
     >
-      <CardActionArea onClick={onClick} sx={{ p: 1 }}>
+      <CardActionArea onClick={onAdd} sx={{ p: 1 }}>
         {src ? (
-          <Box component="img" src={src} alt={card.name} loading="lazy"
-            sx={{ width: '100%', aspectRatio: '63 / 88', objectFit: 'cover', borderRadius: 1.5, display: 'block', bgcolor: 'action.hover' }} />
+          <Box component="img" src={src} alt={slot.name} loading="lazy"
+            sx={{
+              width: '100%', aspectRatio: '63 / 88', objectFit: 'cover', borderRadius: 1.5, display: 'block', bgcolor: 'action.hover',
+              // Missing cards look like "ghosts" until you own them.
+              filter: owned ? 'none' : 'grayscale(1)', opacity: owned ? 1 : 0.55, transition: 'filter .2s, opacity .2s',
+            }} />
         ) : (
           <Box sx={{ width: '100%', aspectRatio: '63 / 88', borderRadius: 1.5, bgcolor: 'action.hover', display: 'grid', placeItems: 'center' }}>
             <Typography variant="caption" color="text.secondary">No image</Typography>
           </Box>
         )}
-        <CardContent sx={{ px: 0.5, pt: 1, pb: '4px !important' }}>
-          <Typography variant="subtitle2" noWrap>{card.name}</Typography>
-          <Typography variant="caption" color="text.secondary" noWrap component="div">{setName} · #{card.localId}</Typography>
-        </CardContent>
+        <Box sx={{ px: 0.5, pt: 1 }}>
+          <Typography variant="subtitle2" noWrap>{slot.name}</Typography>
+          <Typography variant="caption" color="text.secondary" noWrap component="div">
+            #{slot.numberLabel} · {slot.setName}
+          </Typography>
+          <Stack direction="row" spacing={0.5} sx={{ mt: 0.5, alignItems: 'center', minHeight: 22 }}>
+            {slot.variantLabel && <Chip size="small" variant="outlined" label={slot.variantLabel} sx={{ height: 20, fontSize: 11, maxWidth: '100%' }} />}
+            {slot.price != null && <Typography variant="caption" sx={{ fontWeight: 600, ml: 'auto !important' }}>${slot.price.toFixed(2)}</Typography>}
+          </Stack>
+        </Box>
       </CardActionArea>
+
+      <Tooltip title={owned ? 'Owned — tap to unmark' : 'Mark as owned'}>
+        <IconButton
+          size="small"
+          aria-label={owned ? 'Mark as not owned' : 'Mark as owned'}
+          aria-pressed={owned}
+          onClick={onToggleOwned}
+          sx={{
+            position: 'absolute', top: 12, left: 12, bgcolor: 'background.paper', boxShadow: 2, p: 0.25,
+            color: owned ? 'success.main' : 'text.secondary', '&:hover': { bgcolor: 'background.paper' },
+          }}
+        >
+          {owned ? <CheckCircleIcon fontSize="small" /> : <RadioButtonUncheckedIcon fontSize="small" />}
+        </IconButton>
+      </Tooltip>
       <Chip
         className="add-chip"
         size="small"
         color="primary"
-        icon={added ? <CheckCircleIcon /> : <AddIcon />}
-        label={added ? 'Added' : 'Add'}
-        sx={{ position: 'absolute', top: 14, right: 14, pointerEvents: 'none', opacity: added ? 1 : 0, transition: 'opacity .15s', boxShadow: 2 }}
+        icon={queued ? <PrintIcon /> : <AddIcon />}
+        label={queued ? 'On sheet' : 'Print'}
+        sx={{ position: 'absolute', top: 14, right: 14, pointerEvents: 'none', opacity: queued ? 1 : 0, transition: 'opacity .15s', boxShadow: 2 }}
       />
     </Card>
   );

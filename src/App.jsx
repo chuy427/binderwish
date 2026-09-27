@@ -3,46 +3,76 @@ import {
   AppBar, Box, Button, CircularProgress, Container, GlobalStyles, Link, Snackbar, Toolbar, Typography,
 } from '@mui/material';
 import PrintIcon from '@mui/icons-material/Print';
-import QrCode2Icon from '@mui/icons-material/QrCode2';
+import CollectionsBookmarkIcon from '@mui/icons-material/CollectionsBookmark';
 import SearchPanel from './components/SearchPanel';
 import PrintSheetPanel from './components/PrintSheetPanel';
 import PrintArea from './components/PrintArea';
-import { fetchCardExtras, loadSets, setIdFromCardId } from './api';
+import { fetchCardExtras, loadSets } from './api';
 
-// Key kept from the app's earlier "ProxyScan" name so saved sheets carry over.
+// Keys kept from the app's earlier "ProxyScan" name so saved data carries over.
 const STORAGE_KEY = 'proxyscan.v1';
-const DEFAULT_OPTIONS = { paper: 'letter', qrPos: 'br', qrSize: 14, qrOpacity: 100, gap: 0.5, cutLines: true, price: false };
-// Parallel detail lookups (TCGPlayer id + price) — kept low to be polite to TCGdex.
+const OWNED_KEY = 'binderwish.owned';
+const DEFAULT_OPTIONS = {
+  paper: 'letter', style: 'ghost', qrPos: 'br', qrSize: 14, gap: 0.5, cutLines: true, price: false,
+  variants: true, keepPositions: false, newPagePerSet: true,
+};
+// Parallel TCGdex lookups for cards the bundled catalog couldn't match.
 const CONCURRENCY = 4;
 
+// Print-sheet items saved by the pre-BinderWish version were one per card, not per
+// variant — give them the fields the slot-based code expects.
+function migrateItem(c) {
+  if (c.key) return c;
+  return {
+    ...c,
+    key: `${c.id}|legacy`,
+    cardId: c.id,
+    setId: c.id.slice(0, c.id.lastIndexOf('-')),
+    numberLabel: c.number,
+    variantLabel: null,
+    printing: null,
+    order: 0,
+    needsLookup: !c.tcgplayerId,
+  };
+}
+
 function loadSaved() {
+  let queue = [], options = DEFAULT_OPTIONS, owned = new Set();
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-    return {
-      // Re-resolve cards saved without a TCGPlayer product id — the bundled
-      // catalog may know them now.
-      queue: Array.isArray(saved.queue)
-        ? saved.queue.map((c) => (c.tcgplayerId ? c : { ...c, status: 'pending' }))
-        : [],
-      options: { ...DEFAULT_OPTIONS, ...saved.options },
-    };
-  } catch {
-    return { queue: [], options: DEFAULT_OPTIONS };
-  }
+    if (Array.isArray(saved.queue)) {
+      queue = saved.queue.map(migrateItem).map((c) => (c.needsLookup && !c.tcgplayerId ? { ...c, status: 'pending' } : c));
+    }
+    options = { ...DEFAULT_OPTIONS, ...saved.options };
+    delete options.qrOpacity; // removed option
+  } catch {}
+  try { owned = new Set(JSON.parse(localStorage.getItem(OWNED_KEY) || '[]')); } catch {}
+  return { queue, options, owned };
+}
+
+// Binder order: sets in the order they were first added, then set order within each.
+function sortQueue(queue) {
+  const setRank = new Map();
+  queue.forEach((c) => { if (!setRank.has(c.setId)) setRank.set(c.setId, setRank.size); });
+  return [...queue].sort((a, b) => setRank.get(a.setId) - setRank.get(b.setId) || a.order - b.order);
 }
 
 export default function App() {
   const initial = useMemo(loadSaved, []);
-  // queue: [{ id, name, setName, number, image, tcgplayerId, price, qty, status: 'pending'|'ready'|'error' }]
+  // queue: binder slots to print, each with a qty (see api.js makeSlot for the shape)
   const [queue, setQueue] = useState(initial.queue);
   const [options, setOptions] = useState(initial.options);
-  const [setsInfo, setSetsInfo] = useState({ sets: [], names: new Map(), pocketIds: new Set(), loaded: false });
+  const [owned, setOwned] = useState(initial.owned);
+  const [setsInfo, setSetsInfo] = useState({ sets: [], names: new Map(), official: new Map(), pocketIds: new Set(), loaded: false });
   const [printing, setPrinting] = useState(false);
   const [toast, setToast] = useState(null);
 
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ queue, options })); } catch {}
   }, [queue, options]);
+  useEffect(() => {
+    try { localStorage.setItem(OWNED_KEY, JSON.stringify([...owned])); } catch {}
+  }, [owned]);
 
   useEffect(() => {
     loadSets()
@@ -50,62 +80,67 @@ export default function App() {
       .catch(() => setSetsInfo((s) => ({ ...s, loaded: true })));
   }, []);
 
-  // Background enrichment: cards are added instantly, then their TCGPlayer id
-  // and price are fetched a few at a time.
+  // Cards the bundled TCGPlayer catalog couldn't match get their TCGPlayer id and
+  // price from TCGdex in the background, a few at a time.
   const inProgress = useRef(new Set());
   useEffect(() => {
     const free = CONCURRENCY - inProgress.current.size;
     if (free <= 0) return;
-    const next = queue.filter((c) => c.status === 'pending' && !inProgress.current.has(c.id)).slice(0, free);
-    for (const card of next) {
-      inProgress.current.add(card.id);
+    const next = queue.filter((c) => c.status === 'pending' && !inProgress.current.has(c.key)).slice(0, free);
+    for (const item of next) {
+      inProgress.current.add(item.key);
       const finish = (patch) => {
-        inProgress.current.delete(card.id);
-        setQueue((q) => q.map((c) => (c.id === card.id ? { ...c, ...patch } : c)));
+        inProgress.current.delete(item.key);
+        setQueue((q) => q.map((c) => (c.key === item.key ? { ...c, ...patch } : c)));
       };
-      fetchCardExtras(card.id)
+      fetchCardExtras(item.cardId)
         .then((x) => finish({
           tcgplayerId: x.tcgplayerId,
-          price: x.price,
-          setName: x.setName || card.setName,
-          image: card.image || x.image || null,
+          price: item.price ?? x.price,
+          setName: item.setName || x.setName,
+          image: item.image || x.image || null,
           status: 'ready',
         }))
         .catch(() => finish({ status: 'error' }));
     }
   }, [queue]);
 
-  const queuedIds = useMemo(() => new Set(queue.map((c) => c.id)), [queue]);
+  const queuedKeys = useMemo(() => new Set(queue.map((c) => c.key)), [queue]);
 
-  const toQueueItem = useCallback((summary, setName) => ({
-    id: summary.id,
-    name: summary.name,
-    setName: setName || setsInfo.names.get(setIdFromCardId(summary.id)) || '',
-    number: summary.localId,
-    image: summary.image || null,
-    tcgplayerId: null,
-    price: null,
-    qty: 1,
-    status: 'pending',
-  }), [setsInfo]);
+  const toItem = (slot) => ({ ...slot, qty: 1, status: slot.needsLookup ? 'pending' : 'ready' });
 
-  const addCard = useCallback((summary) => {
-    setQueue((q) => (q.some((c) => c.id === summary.id)
-      ? q.map((c) => (c.id === summary.id ? { ...c, qty: c.qty + 1 } : c))
-      : [...q, toQueueItem(summary)]));
-    setToast(`Added ${summary.name}`);
-  }, [toQueueItem]);
+  const addSlot = useCallback((slot) => {
+    if (owned.has(slot.key)) {
+      setToast('You own this one — unmark it (✓) to print a placeholder');
+      return;
+    }
+    setQueue((q) => sortQueue(q.some((c) => c.key === slot.key)
+      ? q.map((c) => (c.key === slot.key ? { ...c, qty: c.qty + 1 } : c))
+      : [...q, toItem(slot)]));
+    setToast(`Added ${slot.name}${slot.variantLabel ? ` (${slot.variantLabel})` : ''}`);
+  }, [owned]);
 
-  const addMany = useCallback((summaries, setName) => {
+  const addMany = useCallback((slots) => {
     setQueue((q) => {
-      const have = new Set(q.map((c) => c.id));
-      return [...q, ...summaries.filter((s) => !have.has(s.id)).map((s) => toQueueItem(s, setName))];
+      const have = new Set(q.map((c) => c.key));
+      return sortQueue([...q, ...slots.filter((s) => !have.has(s.key)).map(toItem)]);
     });
-    setToast(`Added ${summaries.length} cards from ${setName}`);
-  }, [toQueueItem]);
+    setToast(`Added ${slots.length} placeholder${slots.length === 1 ? '' : 's'}`);
+  }, []);
 
-  const changeQty = useCallback((id, delta) => {
-    setQueue((q) => q.map((c) => (c.id === id ? { ...c, qty: c.qty + delta } : c)).filter((c) => c.qty > 0));
+  // Marking a card owned also takes it off the print sheet — no placeholder needed.
+  const toggleOwned = useCallback((key) => {
+    const adding = !owned.has(key);
+    setOwned((prev) => {
+      const next = new Set(prev);
+      if (adding) next.add(key); else next.delete(key);
+      return next;
+    });
+    if (adding) setQueue((q) => q.filter((c) => c.key !== key));
+  }, [owned]);
+
+  const changeQty = useCallback((key, delta) => {
+    setQueue((q) => q.map((c) => (c.key === key ? { ...c, qty: c.qty + delta } : c)).filter((c) => c.qty > 0));
   }, []);
 
   const setOption = useCallback((key, value) => setOptions((o) => ({ ...o, [key]: value })), []);
@@ -131,15 +166,15 @@ export default function App() {
           sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
           <Toolbar sx={{ gap: 2 }}>
             <Box sx={{
-              width: 40, height: 40, borderRadius: '50%', display: 'grid', placeItems: 'center',
+              width: 40, height: 40, borderRadius: '12px', display: 'grid', placeItems: 'center',
               bgcolor: 'primary.main', color: 'primary.contrastText', flexShrink: 0,
             }}>
-              <QrCode2Icon />
+              <CollectionsBookmarkIcon />
             </Box>
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="h6" component="h1" sx={{ lineHeight: 1.2 }}>Proxydex</Typography>
+              <Typography variant="h6" component="h1" sx={{ lineHeight: 1.2 }}>BinderWish</Typography>
               <Typography variant="body2" color="text.secondary" noWrap sx={{ display: { xs: 'none', sm: 'block' } }}>
-                Pokémon proxies with a scannable TCGPlayer price link
+                Placeholder cards for your master set binder — scan to find the real one
               </Typography>
             </Box>
             <Button
@@ -150,8 +185,8 @@ export default function App() {
               onClick={() => setPrinting(true)}
             >
               {stats.pending
-                ? `Fetching prices ${readyCount}/${queue.length}`
-                : `Print ${stats.count} card${stats.count === 1 ? '' : 's'}`}
+                ? `Looking up ${readyCount}/${queue.length}`
+                : printing ? 'Preparing…' : `Print ${stats.count}`}
             </Button>
           </Toolbar>
         </AppBar>
@@ -163,7 +198,15 @@ export default function App() {
             gap: 3,
             alignItems: 'start',
           }}>
-            <SearchPanel setsInfo={setsInfo} queuedIds={queuedIds} onAdd={addCard} onAddMany={addMany} />
+            <SearchPanel
+              setsInfo={setsInfo}
+              variants={options.variants}
+              queuedKeys={queuedKeys}
+              owned={owned}
+              onToggleOwned={toggleOwned}
+              onAdd={addSlot}
+              onAddMany={addMany}
+            />
             <PrintSheetPanel
               queue={queue}
               options={options}
@@ -175,7 +218,8 @@ export default function App() {
           </Box>
 
           <Typography variant="caption" color="text.secondary" component="footer" sx={{ display: 'block', textAlign: 'center', mt: 4 }}>
-            Card data & images via <Link href="https://tcgdex.dev" target="_blank" rel="noopener">TCGdex</Link>. Prices link to TCGPlayer.
+            Placeholders are binder fillers for cards you’re still collecting — not playable or sellable cards.
+            Card data & images via <Link href="https://tcgdex.dev" target="_blank" rel="noopener">TCGdex</Link>; product links to TCGPlayer.
             Pokémon and all related names are trademarks of Nintendo, Creatures Inc. and GAME FREAK inc. Not affiliated.
           </Typography>
         </Container>
@@ -189,7 +233,7 @@ export default function App() {
         />
       </Box>
 
-      {printing && <PrintArea queue={queue} options={options} onDone={() => setPrinting(false)} />}
+      {printing && <PrintArea queue={queue} options={options} setsInfo={setsInfo} onDone={() => setPrinting(false)} />}
     </>
   );
 }

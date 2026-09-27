@@ -6,7 +6,8 @@
 //
 // Output (served as static files):
 //   public/tcgplayer/index.json        { generatedAt, sets: { <tcgdexSetId>: [groupId, ...] } }
-//   public/tcgplayer/g/<groupId>.json  [[number, productId, name, marketPrice|null], ...]
+//   public/tcgplayer/g/<groupId>.json  [[number, productId, name, { <printing>: marketPrice|null }], ...]
+//     printing = TCGPlayer sub-type: "Normal", "Holofoil", "Reverse Holofoil", "1st Edition", …
 //
 // Run: npm run sync-tcgplayer   (also runs automatically before every `npm run build`;
 //      `--if-missing` only syncs when no catalog exists yet — used by `npm run dev`)
@@ -37,7 +38,7 @@ const SUBSET_SUFFIXES = ["galariangallery", "shinyvault", "trainergallery", "rad
 async function getJSON(url, tries = 3) {
   for (let i = 1; ; i++) {
     try {
-      const res = await fetch(url, { headers: { 'User-Agent': 'Proxydex catalog sync' } });
+      const res = await fetch(url, { headers: { 'User-Agent': 'BinderWish catalog sync' } });
       if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
       return await res.json();
     } catch (e) {
@@ -98,14 +99,16 @@ async function main() {
     ]);
     const market = new Map();
     for (const p of prices.results || []) {
-      // A product can have several printings (Normal / Holofoil / Reverse); keep the highest market price.
-      if (p.marketPrice != null && !(market.get(p.productId) >= p.marketPrice)) market.set(p.productId, p.marketPrice);
+      // One entry per printing (Normal / Holofoil / Reverse Holofoil / 1st Edition…) — each is
+      // its own slot in a master set and has its own price.
+      if (!market.has(p.productId)) market.set(p.productId, {});
+      market.get(p.productId)[p.subTypeName] = p.marketPrice ?? p.midPrice ?? null;
     }
     const rows = [];
     for (const p of products.results || []) {
       const num = p.extendedData?.find((d) => d.name === 'Number')?.value;
       if (!num) continue; // sealed product, code card, etc.
-      rows.push([num, p.productId, p.name, market.get(p.productId) ?? null]);
+      rows.push([num, p.productId, p.name, market.get(p.productId) || {}]);
       productToGroup.set(p.productId, g.groupId);
     }
     cardCount += rows.length;

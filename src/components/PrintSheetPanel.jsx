@@ -1,5 +1,5 @@
 import {
-  Alert, Avatar, Box, Button, Chip, CircularProgress, Divider, FormControl, FormControlLabel,
+  Alert, Avatar, Box, Button, Chip, CircularProgress, Divider, FormControl, FormControlLabel, FormHelperText,
   IconButton, InputLabel, Link, List, ListItem, ListItemAvatar, ListItemText, MenuItem, Paper,
   Select, Slider, Stack, Switch, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
 } from '@mui/material';
@@ -10,17 +10,29 @@ import NorthWestIcon from '@mui/icons-material/NorthWest';
 import NorthEastIcon from '@mui/icons-material/NorthEast';
 import SouthWestIcon from '@mui/icons-material/SouthWest';
 import SouthEastIcon from '@mui/icons-material/SouthEast';
-import StyleIcon from '@mui/icons-material/Style';
-import ProxyCard from './ProxyCard';
+import CollectionsBookmarkIcon from '@mui/icons-material/CollectionsBookmark';
+import PlaceholderCard from './PlaceholderCard';
 import { cardImage, tcgplayerUrl } from '../api';
 
-const SAMPLE = { name: 'Your card here', setName: '', number: '', image: null, tcgplayerId: null, price: 1.23 };
+const SAMPLE = {
+  name: 'Exeggcute', setName: 'Prismatic Evolutions', number: '001', numberLabel: '001/131',
+  variantLabel: 'Poké Ball Pattern', image: 'https://assets.tcgdex.net/en/sv/sv08.5/001', tcgplayerId: 610536, price: 0.32,
+};
 
 function SectionTitle({ children }) {
   return (
     <Typography variant="overline" color="text.secondary" sx={{ display: 'block', fontWeight: 700, letterSpacing: '.08em', mb: 1 }}>
       {children}
     </Typography>
+  );
+}
+
+function Toggle({ checked, onChange, label, help }) {
+  return (
+    <Box>
+      <FormControlLabel control={<Switch checked={checked} onChange={(e) => onChange(e.target.checked)} />} label={label} />
+      {help && <FormHelperText sx={{ mt: -0.5, ml: 6 }}>{help}</FormHelperText>}
+    </Box>
   );
 }
 
@@ -49,46 +61,46 @@ export default function PrintSheetPanel({ queue, options, setOption, onQty, onCl
 
       {queue.length === 0 ? (
         <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
-          <StyleIcon sx={{ fontSize: 40, opacity: 0.5 }} />
-          <Typography variant="body2">No cards yet — add some from the search results.</Typography>
+          <CollectionsBookmarkIcon sx={{ fontSize: 40, opacity: 0.5 }} />
+          <Typography variant="body2">No placeholders yet — pick a set and add the cards you’re missing.</Typography>
         </Box>
       ) : (
         <>
           <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', mb: 1 }}>
-            <Chip size="small" label={`${stats.count} card${stats.count === 1 ? '' : 's'}`} />
-            <Chip size="small" label={`${stats.sheets} sheet${stats.sheets === 1 ? '' : 's'}`} />
+            <Chip size="small" label={`${stats.count} placeholder${stats.count === 1 ? '' : 's'}`} />
+            <Chip size="small" label={`≈ ${stats.sheets} page${stats.sheets === 1 ? '' : 's'}`} />
             {stats.priced > 0 && (
               <Chip size="small" color="success" variant="outlined"
-                label={`≈ $${stats.total.toFixed(2)}${stats.priced < stats.count ? ' (partial)' : ''}`} />
+                label={`To buy ≈ $${stats.total.toFixed(2)}${stats.priced < stats.count ? ' (partial)' : ''}`} />
             )}
           </Stack>
           <List dense disablePadding sx={{ maxHeight: 360, overflow: 'auto', mx: -1 }}>
-            {queue.map((card) => (
+            {queue.map((slot) => (
               <ListItem
-                key={card.id}
+                key={slot.key}
                 sx={{ px: 1 }}
                 secondaryAction={
                   <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
-                    <IconButton size="small" aria-label="Remove one" onClick={() => onQty(card.id, -1)}><RemoveIcon fontSize="small" /></IconButton>
-                    <Typography variant="body2" sx={{ minWidth: 18, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{card.qty}</Typography>
-                    <IconButton size="small" aria-label="Add one" onClick={() => onQty(card.id, 1)}><AddIcon fontSize="small" /></IconButton>
+                    <IconButton size="small" aria-label="Remove one" onClick={() => onQty(slot.key, -1)}><RemoveIcon fontSize="small" /></IconButton>
+                    <Typography variant="body2" sx={{ minWidth: 18, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{slot.qty}</Typography>
+                    <IconButton size="small" aria-label="Add one" onClick={() => onQty(slot.key, 1)}><AddIcon fontSize="small" /></IconButton>
                   </Stack>
                 }
               >
                 <ListItemAvatar sx={{ minWidth: 48 }}>
-                  <Avatar variant="rounded" src={cardImage(card) || undefined} sx={{ width: 36, height: 50 }} />
+                  <Avatar variant="rounded" src={cardImage(slot) || undefined} sx={{ width: 36, height: 50, filter: 'grayscale(1)', opacity: 0.7 }} />
                 </ListItemAvatar>
                 <ListItemText
                   sx={{ pr: 11 }}
-                  primary={card.name}
+                  primary={`${slot.name}${slot.variantLabel ? ` · ${slot.variantLabel}` : ''}`}
                   slotProps={{ primary: { noWrap: true, fontWeight: 500 }, secondary: { component: 'div', noWrap: true } }}
                   secondary={
                     <>
-                      {card.setName} #{card.number} ·{' '}
-                      {card.status === 'pending'
+                      {slot.setName} #{slot.numberLabel || slot.number} ·{' '}
+                      {slot.status === 'pending'
                         ? <CircularProgress size={10} sx={{ verticalAlign: 'middle' }} />
-                        : <Link href={tcgplayerUrl(card)} target="_blank" rel="noopener" underline="hover">
-                            {card.price != null ? `$${card.price.toFixed(2)}` : 'TCGPlayer'}
+                        : <Link href={tcgplayerUrl(slot)} target="_blank" rel="noopener" underline="hover">
+                            {slot.price != null ? `$${slot.price.toFixed(2)}` : 'TCGPlayer'}
                           </Link>}
                     </>
                   }
@@ -100,7 +112,39 @@ export default function PrintSheetPanel({ queue, options, setOption, onQty, onCl
       )}
 
       <Divider sx={{ my: 2 }} />
-      <SectionTitle>Options</SectionTitle>
+      <SectionTitle>Collecting</SectionTitle>
+      <Toggle
+        checked={options.variants}
+        onChange={(v) => setOption('variants', v)}
+        label="Master set (every variant)"
+        help="Reverse holos, Poké Ball / Master Ball patterns and other printings each get their own slot."
+      />
+
+      <Divider sx={{ my: 2 }} />
+      <SectionTitle>Placeholder style</SectionTitle>
+      <ToggleButtonGroup exclusive fullWidth size="small" color="primary" value={options.style} onChange={(_, v) => v && setOption('style', v)}>
+        <ToggleButton value="ghost">Ghost (grayscale)</ToggleButton>
+        <ToggleButton value="tinted">Tinted (faded color)</ToggleButton>
+      </ToggleButtonGroup>
+
+      <Divider sx={{ my: 2 }} />
+      <SectionTitle>Binder layout</SectionTitle>
+      <Stack spacing={0.5}>
+        <Toggle
+          checked={options.keepPositions}
+          onChange={(v) => setOption('keepPositions', v)}
+          label="Match binder page positions"
+          help="Each printed page mirrors a 9-pocket binder page of the set; slots you’re not printing are left blank."
+        />
+        <Toggle
+          checked={options.newPagePerSet}
+          onChange={(v) => setOption('newPagePerSet', v)}
+          label="Start each set on a new page"
+        />
+      </Stack>
+
+      <Divider sx={{ my: 2 }} />
+      <SectionTitle>Printing</SectionTitle>
       <Stack spacing={2}>
         <FormControl size="small" fullWidth>
           <InputLabel id="paper-label">Paper</InputLabel>
@@ -124,27 +168,23 @@ export default function PrintSheetPanel({ queue, options, setOption, onQty, onCl
           </ToggleButtonGroup>
         </Box>
 
-        <LabeledSlider label="QR size" unit="mm" min={10} max={24} step={1} value={options.qrSize} onChange={(v) => setOption('qrSize', v)} />
-        <LabeledSlider label="QR opacity" unit="%" min={40} max={100} step={5} value={options.qrOpacity} onChange={(v) => setOption('qrOpacity', v)} />
-        <LabeledSlider label="Card gap" unit="mm" min={0} max={4} step={0.5} value={options.gap} onChange={(v) => setOption('gap', v)} />
+        <LabeledSlider label="QR size" unit="mm" min={12} max={24} step={1} value={options.qrSize} onChange={(v) => setOption('qrSize', v)} />
+        <LabeledSlider label="Gap between cards" unit="mm" min={0} max={3} step={0.5} value={options.gap} onChange={(v) => setOption('gap', v)} />
 
         <Box>
-          <FormControlLabel control={<Switch checked={options.cutLines} onChange={(e) => setOption('cutLines', e.target.checked)} />} label="Cut guides" />
-          <FormControlLabel control={<Switch checked={options.price} onChange={(e) => setOption('price', e.target.checked)} />} label="Print price under QR" />
+          <Toggle checked={options.cutLines} onChange={(v) => setOption('cutLines', v)} label="Cut guides" />
+          <Toggle checked={options.price} onChange={(v) => setOption('price', v)} label="Print price under QR" />
         </Box>
       </Stack>
 
       <Divider sx={{ my: 2 }} />
       <SectionTitle>Preview</SectionTitle>
       <Box sx={{ display: 'grid', placeItems: 'center', p: 2, bgcolor: 'action.hover', borderRadius: 2 }}>
-        <ProxyCard card={preview} options={options} style={{ boxShadow: '0 4px 16px rgba(0,0,0,.25)' }} />
+        <PlaceholderCard slot={preview} options={options} style={{ boxShadow: '0 4px 16px rgba(0,0,0,.25)' }} />
       </Box>
       <Alert severity="info" variant="outlined" sx={{ mt: 2 }}>
-        Print at <strong>100% / Actual size</strong> (not “Fit to page”) so cards come out 63 × 88 mm.
+        Print at <strong>100% / Actual size</strong> (not “Fit to page”) so placeholders come out card-sized (63 × 88 mm) and fit binder pockets.
       </Alert>
-      <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 1.5 }}>
-        Proxies are for casual play and collection planning only — not for sale or sanctioned tournaments.
-      </Typography>
     </Paper>
   );
 }
