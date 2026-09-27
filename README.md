@@ -1,9 +1,10 @@
 # BinderWish
 
 Print card-sized placeholders for the Pokémon TCG cards missing from your
-master set binder. Each placeholder shows the card's number, name and variant
-over faded "ghost" art, plus a QR code to the exact TCGPlayer listing — so when
-you flip through the binder you can scan a gap and buy the real card.
+master set binder. Each placeholder is the card art with a subtle
+"placeholder / not a real card" band (naming the variant) and a QR code to the
+exact TCGPlayer listing — so when you flip through the binder you can scan a gap
+and buy the real card.
 
 - **Master sets**: every printing gets its own slot — reverse holos, Poké Ball /
   Master Ball patterns, 1st Edition, etc. — each linking to its own listing.

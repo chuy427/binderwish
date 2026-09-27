@@ -120,12 +120,6 @@ export default function PrintSheetPanel({ queue, options, setOption, onQty, onCl
         help="Reverse holos, Poké Ball / Master Ball patterns and other printings each get their own slot."
       />
 
-      <Divider sx={{ my: 2 }} />
-      <SectionTitle>Placeholder style</SectionTitle>
-      <ToggleButtonGroup exclusive fullWidth size="small" color="primary" value={options.style} onChange={(_, v) => v && setOption('style', v)}>
-        <ToggleButton value="ghost">Ghost (grayscale)</ToggleButton>
-        <ToggleButton value="tinted">Tinted (faded color)</ToggleButton>
-      </ToggleButtonGroup>
 
       <Divider sx={{ my: 2 }} />
       <SectionTitle>Binder layout</SectionTitle>

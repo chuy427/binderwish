@@ -13,7 +13,7 @@ import { fetchCardExtras, loadSets } from './api';
 const STORAGE_KEY = 'proxyscan.v1';
 const OWNED_KEY = 'binderwish.owned';
 const DEFAULT_OPTIONS = {
-  paper: 'letter', style: 'ghost', qrPos: 'br', qrSize: 14, gap: 0.5, cutLines: true, price: false,
+  paper: 'letter', qrPos: 'br', qrSize: 14, gap: 0.5, cutLines: true, price: false,
   variants: true, keepPositions: false, newPagePerSet: true,
 };
 // Parallel TCGdex lookups for cards the bundled catalog couldn't match.
@@ -44,7 +44,7 @@ function loadSaved() {
       queue = saved.queue.map(migrateItem).map((c) => (c.needsLookup && !c.tcgplayerId ? { ...c, status: 'pending' } : c));
     }
     options = { ...DEFAULT_OPTIONS, ...saved.options };
-    delete options.qrOpacity; // removed option
+    delete options.qrOpacity; delete options.style; // removed options
   } catch {}
   try { owned = new Set(JSON.parse(localStorage.getItem(OWNED_KEY) || '[]')); } catch {}
   return { queue, options, owned };

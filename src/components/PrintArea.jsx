@@ -79,9 +79,7 @@ export default function PrintArea({ queue, options, setsInfo, onDone }) {
         <div key={i} className={`sheet${options.cutLines ? ' cutlines' : ''}`}>
           <div className="sheet-grid" style={{ gap: `${options.gap}mm` }}>
             {page.cells.map((slot, j) => (slot
-              // Art is printed faded, so the small image is plenty — keeps big
-              // master-set prints fast (hundreds of cards).
-              ? <PlaceholderCard key={j} slot={slot} options={options} />
+              ? <PlaceholderCard key={j} slot={slot} options={options} highRes />
               : <div key={j} className="pcard blank" />))}
           </div>
           {page.caption && <div className="sheet-caption">BinderWish · {page.caption}</div>}
