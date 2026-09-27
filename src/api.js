@@ -10,6 +10,7 @@ export const TTL = {
   sets: 7 * 24 * HOUR,   // set list / pocket exclusions / a set's card list
   card: 24 * HOUR,       // card detail (includes price)
   search: 24 * HOUR,     // name search results
+  catalogIndex: HOUR,    // bundled TCGPlayer catalog index (changes on each rebuild)
 };
 
 const memCache = new Map();
@@ -148,10 +149,15 @@ const normName = (n) => String(n).split(' - ')[0].replace(/\([^)]*\)/g, '')
   .normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
 async function catalogRows(setId) {
-  const index = await getJSON(`${CATALOG}/index.json`, TTL.card).catch(() => ({}));
+  // The index is re-checked hourly; group files are keyed by the catalog build
+  // time, so each rebuild (daily) is fetched fresh and never mixed with a stale
+  // cached copy — including one in an older file format.
+  const index = await getJSON(`${CATALOG}/index.json`, TTL.catalogIndex).catch(() => ({}));
   const groups = index.sets?.[setId];
   if (!groups?.length) return [];
-  return (await Promise.all(groups.map((g) => getJSON(`${CATALOG}/g/${g}.json`, TTL.card).catch(() => [])))).flat();
+  const v = encodeURIComponent(index.generatedAt || '');
+  const rows = (await Promise.all(groups.map((g) => getJSON(`${CATALOG}/g/${g}.json?v=${v}`, TTL.card).catch(() => [])))).flat();
+  return rows.filter((r) => r[3] && typeof r[3] === 'object');
 }
 
 // All TCGPlayer products for one TCGdex card: the plain product first, then any
