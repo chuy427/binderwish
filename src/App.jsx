@@ -3,10 +3,12 @@ import {
   AppBar, Box, Button, CircularProgress, Container, GlobalStyles, Link, Snackbar, Toolbar, Typography,
 } from '@mui/material';
 import PrintIcon from '@mui/icons-material/Print';
+import CollectionsIcon from '@mui/icons-material/Collections';
 import CollectionsBookmarkIcon from '@mui/icons-material/CollectionsBookmark';
 import SearchPanel from './components/SearchPanel';
 import PrintSheetPanel from './components/PrintSheetPanel';
 import PrintArea from './components/PrintArea';
+import HomePage from './components/HomePage';
 import { fetchCardExtras, loadSets } from './api';
 
 // Keys kept from the app's earlier "ProxyScan" name so saved data carries over.
@@ -33,6 +35,35 @@ function migrateItem(c) {
     printing: null,
     order: 0,
     needsLookup: !c.tcgplayerId,
+  };
+}
+
+// ---------- Routing ----------
+// Real paths (/search) rather than hash routes. GitHub Pages serves unknown paths
+// from 404.html, which the build makes a copy of index.html, so deep links and
+// refreshes load the app.
+const BASE = import.meta.env.BASE_URL; // e.g. "/binderwish/"
+
+function routeUrl(view, { set, q } = {}) {
+  if (view !== 'search') return BASE;
+  const params = new URLSearchParams();
+  if (set) params.set('set', set);
+  if (q) params.set('q', q);
+  const qs = params.toString();
+  return `${BASE}search${qs ? `?${qs}` : ''}`;
+}
+
+function readRoute() {
+  // Old hash links (#/binder) from before /search existed.
+  if (location.hash.startsWith('#/binder')) history.replaceState(null, '', routeUrl('search'));
+  const path = location.pathname.startsWith(BASE) ? location.pathname.slice(BASE.length) : '';
+  const params = new URLSearchParams(location.search);
+  return {
+    view: path.replace(/\/$/, '') === 'search' ? 'search' : 'home',
+    set: params.get('set') || null,
+    q: params.get('q') || '',
+    // Remounts the search panel when arriving from somewhere else (home, back/forward).
+    key: `${params.get('set') || ''}|${params.get('q') || ''}|${Date.now()}`,
   };
 }
 
@@ -66,6 +97,19 @@ export default function App() {
   const [setsInfo, setSetsInfo] = useState({ sets: [], names: new Map(), official: new Map(), pocketIds: new Set(), loaded: false });
   const [printing, setPrinting] = useState(false);
   const [toast, setToast] = useState(null);
+  // Routes: <base> = home, <base>search?set=<id>|q=<name> = the tool.
+  const [route, setRoute] = useState(readRoute);
+  useEffect(() => {
+    const onPop = () => setRoute(readRoute());
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+  const navigate = (view, params = {}) => {
+    history.pushState(null, '', routeUrl(view, params));
+    setRoute(readRoute());
+    window.scrollTo(0, 0);
+  };
+  const view = route.view;
 
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ queue, options })); } catch {}
@@ -165,18 +209,25 @@ export default function App() {
         <AppBar position="sticky" color="inherit" elevation={0}
           sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
           <Toolbar sx={{ gap: 2 }}>
-            <Box sx={{
-              width: 40, height: 40, borderRadius: '12px', display: 'grid', placeItems: 'center',
-              bgcolor: 'primary.main', color: 'primary.contrastText', flexShrink: 0,
-            }}>
-              <CollectionsBookmarkIcon />
+            <Box component="a" href={BASE} onClick={(e) => { e.preventDefault(); navigate('home'); }} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: 'inherit', textDecoration: 'none', flex: 1, minWidth: 0 }}>
+              <Box sx={{
+                width: 40, height: 40, borderRadius: '12px', display: 'grid', placeItems: 'center',
+                bgcolor: 'primary.main', color: 'primary.contrastText', flexShrink: 0,
+              }}>
+                <CollectionsBookmarkIcon />
+              </Box>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="h6" component="div" sx={{ lineHeight: 1.2 }}>BinderWish</Typography>
+                <Typography variant="body2" color="text.secondary" noWrap sx={{ display: { xs: 'none', sm: 'block' } }}>
+                  Placeholder cards for your master set binder — scan to find the real one
+                </Typography>
+              </Box>
             </Box>
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography variant="h6" component="h1" sx={{ lineHeight: 1.2 }}>BinderWish</Typography>
-              <Typography variant="body2" color="text.secondary" noWrap sx={{ display: { xs: 'none', sm: 'block' } }}>
-                Placeholder cards for your master set binder — scan to find the real one
-              </Typography>
-            </Box>
+            {view === 'home' ? (
+              <Button variant="contained" size="large" startIcon={<CollectionsIcon />} onClick={() => navigate('search')}>
+                Open my binder
+              </Button>
+            ) : (
             <Button
               variant="contained"
               size="large"
@@ -188,9 +239,13 @@ export default function App() {
                 ? `Looking up ${readyCount}/${queue.length}`
                 : printing ? 'Preparing…' : `Print ${stats.count}`}
             </Button>
+            )}
           </Toolbar>
         </AppBar>
 
+        {view === 'home' ? (
+          <HomePage setsInfo={setsInfo} onStart={({ set, query }) => navigate('search', { set: set?.id, q: query })} />
+        ) : (
         <Container maxWidth="xl" sx={{ py: 3 }}>
           <Box sx={{
             display: 'grid',
@@ -199,6 +254,10 @@ export default function App() {
             alignItems: 'start',
           }}>
             <SearchPanel
+              key={route.key}
+              initialSetId={route.set}
+              initialQuery={route.q}
+              onSearched={({ set, query }) => history.replaceState(null, '', routeUrl('search', { set: set?.id, q: query }))}
               setsInfo={setsInfo}
               variants={options.variants}
               queuedKeys={queuedKeys}
@@ -223,6 +282,7 @@ export default function App() {
             Pokémon and all related names are trademarks of Nintendo, Creatures Inc. and GAME FREAK inc. Not affiliated.
           </Typography>
         </Container>
+        )}
 
         <Snackbar
           open={!!toast}

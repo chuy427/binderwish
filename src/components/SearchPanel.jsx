@@ -18,8 +18,8 @@ const gridSx = {
 };
 const money = (n) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export default function SearchPanel({ setsInfo, variants, queuedKeys, owned, onToggleOwned, onAdd, onAddMany }) {
-  const [query, setQuery] = useState('');
+export default function SearchPanel({ initialSetId, initialQuery, onSearched, setsInfo, variants, queuedKeys, owned, onToggleOwned, onAdd, onAddMany }) {
+  const [query, setQuery] = useState(initialQuery || '');
   const [set, setSet] = useState(null);          // { id, name } | null
   const [slots, setSlotsState] = useState([]);
   const [cards, setCards] = useState([]);        // raw name-search results (for paging)
@@ -49,6 +49,7 @@ export default function SearchPanel({ setsInfo, variants, queuedKeys, owned, onT
       }
       setPage(nextPage);
       setSearched({ query: q.trim(), set: s });
+      onSearched?.({ set: s, query: q.trim() });
     } catch (e) {
       setError(`Search failed (${e.message}). Try again in a moment.`);
     } finally {
@@ -56,6 +57,14 @@ export default function SearchPanel({ setsInfo, variants, queuedKeys, owned, onT
     }
   }
 
+  // A card-name search started from the home page.
+  // Start from the URL (/search?set=… or ?q=…) once the set list has loaded.
+  useEffect(() => {
+    if (!setsInfo.loaded) return;
+    const s = initialSetId && setsInfo.sets.find((x) => x.id === initialSetId);
+    if (s) setSet(s); // browsing starts via the effect below
+    else if (initialQuery) run({ q: initialQuery, s: null });
+  }, [setsInfo.loaded]); // eslint-disable-line react-hooks/exhaustive-deps
   // Picking a set browses it immediately (narrowed by any name already typed).
   useEffect(() => { if (set) run({ s: set }); }, [set]); // eslint-disable-line react-hooks/exhaustive-deps
   // Re-expand results when the master-set (variants) option changes.

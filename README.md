@@ -37,6 +37,12 @@ GitHub Pages via `.github/workflows/deploy.yml`, on every push to `main` and
 daily at 21:30 UTC (after tcgcsv's daily refresh) so new sets and prices stay current.
 The workflow can also be run manually from the Actions tab.
 
+Routes: `/binderwish/` is the home page, `/binderwish/search?set=<id>` (or `?q=<name>`)
+is the collecting tool. GitHub Pages only serves real files, so the build copies
+`index.html` to `404.html` — unknown paths like `/search` then load the app.
+Assets use an absolute base (`/binderwish/`, see `vite.config.js`); build with
+`BASE_PATH=/` when serving from the root of a custom domain.
+
 Note: GitHub disables scheduled workflows in a public repo after 60 days with
 no commits; re-enable it from the Actions tab if that happens.
 
