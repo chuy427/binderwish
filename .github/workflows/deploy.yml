@@ -30,6 +30,10 @@ jobs:
       - run: npm ci
       # `prebuild` runs scripts/sync-tcgplayer.mjs to refresh the TCGPlayer catalog.
       - run: npm run build
+        env:
+          # Form endpoint for the "Get them printed" waitlist (Settings → Secrets and
+          # variables → Actions → Variables). Unset = the button stays hidden.
+          VITE_WAITLIST_ENDPOINT: ${{ vars.WAITLIST_ENDPOINT }}
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:

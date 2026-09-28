@@ -1,21 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AppBar, Box, Button, CircularProgress, Container, GlobalStyles, Link, Snackbar, Toolbar, Typography,
+  AppBar, Box, Button, IconButton, CircularProgress, Container, GlobalStyles, Link, Snackbar, Toolbar, Typography,
 } from '@mui/material';
 import PrintIcon from '@mui/icons-material/Print';
+import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import CollectionsIcon from '@mui/icons-material/Collections';
 import CollectionsBookmarkIcon from '@mui/icons-material/CollectionsBookmark';
 import SearchPanel from './components/SearchPanel';
 import PrintSheetPanel from './components/PrintSheetPanel';
 import PrintArea from './components/PrintArea';
 import HomePage from './components/HomePage';
+import BackupSection from './components/BackupSection';
+import WaitlistDialog, { WAITLIST_ENABLED } from './components/WaitlistDialog';
+import { downloadBackup, mergeBackup } from './lib/backup';
 import { DEFAULT_GAME, GAMES, getGame } from './games';
 
 // Keys kept from the app's earlier "ProxyScan" name so saved data carries over.
 const STORAGE_KEY = 'proxyscan.v1';
 const OWNED_KEY = 'binderwish.owned';
 const DEFAULT_OPTIONS = {
-  paper: 'letter', qrPos: 'br', qrSize: 14, gap: 0.5, cutLines: true, price: false,
+  paper: 'letter', cardStyle: 'art', qrPos: 'br', qrSize: 14, gap: 0.5, cutLines: true, price: false,
   variants: true, keepPositions: false, newPagePerSet: true,
 };
 // Parallel card-data lookups for cards the bundled catalog couldn't match.
@@ -115,6 +119,7 @@ export default function App() {
   }, []);
   const [printing, setPrinting] = useState(false);
   const [toast, setToast] = useState(null);
+  const [waitlistOpen, setWaitlistOpen] = useState(false);
   // Routes: <base> = home, <base>search?set=<id>|q=<name> = the tool.
   const [route, setRoute] = useState(readRoute);
   useEffect(() => {
@@ -206,6 +211,25 @@ export default function App() {
     setQueue((q) => q.map((c) => (c.key === key ? { ...c, qty: c.qty + delta } : c)).filter((c) => c.qty > 0));
   }, []);
 
+  const exportBackup = () => {
+    downloadBackup({ owned, queue, options });
+    setToast('Backup downloaded');
+  };
+  const importBackup = (mode, data) => {
+    if (mode === 'replace') {
+      const nextOwned = new Set(data.owned);
+      setOwned(nextOwned);
+      setQueue(sortQueue(data.queue.filter((c) => !nextOwned.has(c.key))));
+      setOptions({ ...DEFAULT_OPTIONS, ...data.options });
+      setToast(`Replaced with backup: ${data.owned.length} owned, ${data.queue.length} on print sheet`);
+    } else {
+      const merged = mergeBackup({ owned: [...owned], queue }, data);
+      setOwned(merged.owned);
+      setQueue(sortQueue(merged.queue));
+      setToast(`Merged backup: ${merged.owned.size} owned, ${merged.queue.length} on print sheet`);
+    }
+  };
+
   const setOption = useCallback((key, value) => setOptions((o) => ({ ...o, [key]: value })), []);
 
   const stats = useMemo(() => {
@@ -259,6 +283,21 @@ export default function App() {
                 : printing ? 'Preparing…' : `Print ${stats.count}`}
             </Button>
             )}
+            {view !== 'home' && WAITLIST_ENABLED && (
+              <>
+                <Button
+                  variant="outlined" size="large" startIcon={<LocalShippingIcon />}
+                  onClick={() => setWaitlistOpen(true)}
+                  sx={{ display: { xs: 'none', sm: 'inline-flex' }, flexShrink: 0 }}
+                >
+                  Get them printed
+                </Button>
+                <IconButton color="primary" aria-label="Get them printed" onClick={() => setWaitlistOpen(true)}
+                  sx={{ display: { xs: 'inline-flex', sm: 'none' }, border: 1, borderColor: 'divider' }}>
+                  <LocalShippingIcon />
+                </IconButton>
+              </>
+            )}
           </Toolbar>
         </AppBar>
 
@@ -298,6 +337,15 @@ export default function App() {
               onQty={changeQty}
               onClear={() => setQueue([])}
               stats={stats}
+              dataSection={
+                <BackupSection
+                  ownedCount={owned.size}
+                  queueCount={queue.length}
+                  defaultOptions={DEFAULT_OPTIONS}
+                  onExport={exportBackup}
+                  onImport={importBackup}
+                />
+              }
             />
           </Box>
 
@@ -318,6 +366,7 @@ export default function App() {
         />
       </Box>
 
+      <WaitlistDialog open={waitlistOpen} onClose={() => setWaitlistOpen(false)} queue={queue} count={stats.count} />
       {printing && <PrintArea queue={queue} options={options} getSetsInfo={getSetsInfo} onDone={() => setPrinting(false)} />}
     </>
   );

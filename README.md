@@ -12,6 +12,17 @@ and buy the real card.
 - **Owned checklist**: mark what you have; see progress and what's left to buy,
   and print placeholders only for the missing slots. Marking a card owned takes
   it off the print sheet. (Saved in your browser.)
+- **Backup**: export owned cards, print sheet and settings to a JSON file, and
+  import it later — merged with what's there, or replacing it (e.g. to move
+  between devices).
+- **Card styles**: the card's own art with a subtle placeholder band, or
+  "Clean" — BinderWish's art-free design (name, number, set, variant, big QR),
+  which uses far less ink.
+- **Printed & shipped waitlist**: a "Get them printed" button collects emails
+  for a planned print-and-ship service (art-free design only). It posts JSON to
+  `VITE_WAITLIST_ENDPOINT` (e.g. a Formspree form); set it as the `WAITLIST_ENDPOINT`
+  repository variable for deploys, or in `.env.development.local` for local dev.
+  Without it the button is hidden in production.
 - **Binder order**: prints 9 per page in set order. Optionally each page mirrors
   a real 9-pocket binder page, with blanks for slots you're not printing.
 - Placeholders are deliberately unmistakable ("PLACEHOLDER · NOT A REAL CARD").

@@ -36,7 +36,7 @@ function Toggle({ checked, onChange, label, help }) {
   );
 }
 
-export default function PrintSheetPanel({ queue, options, setOption, onQty, onClear, stats }) {
+export default function PrintSheetPanel({ queue, options, setOption, onQty, onClear, stats, dataSection }) {
   const preview = queue[queue.length - 1] || SAMPLE;
 
   return (
@@ -140,6 +140,17 @@ export default function PrintSheetPanel({ queue, options, setOption, onQty, onCl
       <Divider sx={{ my: 2 }} />
       <SectionTitle>Printing</SectionTitle>
       <Stack spacing={2}>
+        <Box>
+          <Typography variant="body2" gutterBottom>Card style</Typography>
+          <ToggleButtonGroup exclusive fullWidth size="small" color="primary" value={options.cardStyle} onChange={(_, v) => v && setOption('cardStyle', v)}>
+            <ToggleButton value="art">Card art</ToggleButton>
+            <ToggleButton value="clean">Clean (no art)</ToggleButton>
+          </ToggleButtonGroup>
+          {options.cardStyle === 'clean' && (
+            <FormHelperText>Name, number, set and variant with a big QR code — uses far less ink.</FormHelperText>
+          )}
+        </Box>
+
         <FormControl size="small" fullWidth>
           <InputLabel id="paper-label">Paper</InputLabel>
           <Select labelId="paper-label" label="Paper" value={options.paper} onChange={(e) => setOption('paper', e.target.value)}>
@@ -148,6 +159,7 @@ export default function PrintSheetPanel({ queue, options, setOption, onQty, onCl
           </Select>
         </FormControl>
 
+        {options.cardStyle !== 'clean' && (<>
         <Box>
           <Typography variant="body2" gutterBottom>QR position</Typography>
           <ToggleButtonGroup
@@ -163,6 +175,7 @@ export default function PrintSheetPanel({ queue, options, setOption, onQty, onCl
         </Box>
 
         <LabeledSlider label="QR size" unit="mm" min={12} max={24} step={1} value={options.qrSize} onChange={(v) => setOption('qrSize', v)} />
+        </>)}
         <LabeledSlider label="Gap between cards" unit="mm" min={0} max={3} step={0.5} value={options.gap} onChange={(v) => setOption('gap', v)} />
 
         <Box>
@@ -179,6 +192,14 @@ export default function PrintSheetPanel({ queue, options, setOption, onQty, onCl
       <Alert severity="info" variant="outlined" sx={{ mt: 2 }}>
         Print at <strong>100% / Actual size</strong> (not “Fit to page”) so placeholders come out card-sized (63 × 88 mm) and fit binder pockets.
       </Alert>
+
+      {dataSection && (
+        <>
+          <Divider sx={{ my: 2 }} />
+          <SectionTitle>Your data</SectionTitle>
+          {dataSection}
+        </>
+      )}
     </Paper>
   );
 }

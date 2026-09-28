@@ -1,5 +1,6 @@
 import { QRCodeSVG } from 'qrcode.react';
 import { cardImage, tcgplayerUrl } from '../catalog';
+import { getGame } from '../games';
 
 const QR_INSET = '3.5mm';
 // Where the "not a real card" band sits, per game — over a part of the card that
@@ -19,6 +20,7 @@ const QR_POSITION = {
 // QR code to the exact TCGPlayer listing. Plain elements + inline styles (not
 // MUI) so it prints identically everywhere.
 export default function PlaceholderCard({ slot, options, highRes = false, style }) {
+  if (options.cardStyle === 'clean') return <CleanPlaceholder slot={slot} options={options} style={style} />;
   const src = cardImage(slot, highRes ? 'high' : 'low');
   return (
     <div
@@ -65,6 +67,71 @@ export default function PlaceholderCard({ slot, options, highRes = false, style 
             ${slot.price.toFixed(2)}
           </span>
         )}
+      </div>
+    </div>
+  );
+}
+
+const FONT = 'Roboto, system-ui, sans-serif';
+const INK = '#1d1b26';
+const MUTED = '#6b6879';
+const ACCENT = '#6d4aff';
+
+// The art-free placeholder: BinderWish's own design built only from the card's
+// details (game, set, number, name, variant) plus a large QR code. No official
+// artwork — low-ink at home, and the design offered for printed-and-shipped
+// placeholders. Layout is fixed (the QR options don't apply).
+function CleanPlaceholder({ slot, options, style }) {
+  const gameName = slot.game ? getGame(slot.game).name : 'Pokémon';
+  return (
+    <div
+      className="pcard"
+      style={{
+        position: 'relative', width: '63mm', height: '88mm', overflow: 'hidden', borderRadius: '3mm',
+        background: '#fff', color: INK, fontFamily: FONT, boxShadow: 'inset 0 0 0 0.3mm #d8d6e0',
+        display: 'flex', flexDirection: 'column', ...style,
+      }}
+    >
+      {/* Header: game · set, and the big card number */}
+      <div style={{
+        padding: '2.6mm 3.5mm 2.2mm', background: '#f1edff', borderBottom: `0.4mm solid ${ACCENT}`,
+        display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '2mm',
+      }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ font: `700 5pt/1.2 ${FONT}`, letterSpacing: '.12em', textTransform: 'uppercase', color: ACCENT }}>{gameName}</div>
+          <div style={{ font: `600 6.5pt/1.2 ${FONT}`, color: MUTED, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{slot.setName}</div>
+        </div>
+        <div style={{ font: `800 13pt/1 ${FONT}`, whiteSpace: 'nowrap' }}>#{slot.numberLabel || slot.number}</div>
+      </div>
+
+      {/* Name + variant */}
+      <div style={{ padding: '3.5mm 3.5mm 0', textAlign: 'center', minHeight: '19mm' }}>
+        <div style={{
+          font: `800 12.5pt/1.15 ${FONT}`, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+        }}>{slot.name}</div>
+        {slot.variantLabel && (
+          <div style={{
+            display: 'inline-block', marginTop: '1.6mm', padding: '0.5mm 2.2mm', borderRadius: '5mm',
+            border: `0.3mm solid ${ACCENT}`, color: ACCENT, font: `700 6.5pt/1.3 ${FONT}`,
+          }}>{slot.variantLabel}</div>
+        )}
+      </div>
+
+      {/* Big QR to the exact TCGPlayer listing */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1.4mm' }}>
+        <QRCodeSVG value={tcgplayerUrl(slot)} level="M" marginSize={0} style={{ width: '27mm', height: '27mm', display: 'block' }} />
+        <div style={{ font: `600 6pt/1.2 ${FONT}`, color: MUTED }}>
+          Scan for today’s price
+          {options.price && slot.price != null && <b style={{ color: INK }}> · ${slot.price.toFixed(2)}</b>}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div style={{
+        padding: '1.6mm 3mm', textAlign: 'center', borderTop: '0.3mm dashed #d8d6e0',
+        font: `700 5pt/1.2 ${FONT}`, letterSpacing: '.12em', textTransform: 'uppercase', color: MUTED,
+      }}>
+        BinderWish placeholder · not a real card
       </div>
     </div>
   );
