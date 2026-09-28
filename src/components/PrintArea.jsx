@@ -66,17 +66,23 @@ export default function PrintArea({ queue, options, getSetsInfo, onDone }) {
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Once laid out, wait for the art to load so the print isn't blank.
+  // Once laid out, wait for the art to settle so the print isn't blank. A missing
+  // image swaps to a fallback source (or the art-free design) after it fails, so
+  // wait until every image is complete twice in a row, a moment apart (max ~15s).
   useEffect(() => {
     if (!pages) return;
     let cancelled = false;
-    const imgs = [...ref.current.querySelectorAll('img')];
-    Promise.all(imgs.map((img) => (img.complete ? null : new Promise((r) => { img.onload = img.onerror = r; }))))
-      .then(() => {
-        if (cancelled) return;
-        window.addEventListener('afterprint', onDone, { once: true });
-        window.print();
-      });
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const allComplete = () => [...ref.current.querySelectorAll('img')].every((img) => img.complete);
+    (async () => {
+      for (let i = 0; i < 60; i++) {
+        await sleep(150);
+        if (allComplete()) { await sleep(150); if (allComplete()) break; }
+      }
+      if (cancelled) return;
+      window.addEventListener('afterprint', onDone, { once: true });
+      window.print();
+    })();
     return () => { cancelled = true; };
   }, [pages]); // eslint-disable-line react-hooks/exhaustive-deps
 

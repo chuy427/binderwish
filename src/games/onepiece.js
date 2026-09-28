@@ -6,6 +6,9 @@ import { getJSON, TTL } from '../lib/cache';
 import { catalogIndex, catalogRows, catalogFile } from '../catalog';
 
 const IMG = 'https://tcgplayer-cdn.tcgplayer.com/product';
+// Bandai's official card list — used when TCGPlayer has no image yet. Only for
+// standard cards: its variant filenames don't map reliably to TCGPlayer products.
+const BANDAI_IMG = 'https://en.onepiece-cardgame.com/images/cardlist/card';
 const KIND_ORDER = ['Booster', 'Extra & Premium', 'Starter Deck', 'Other'];
 
 // Parentheticals that always mean "a different version of this card", never part
@@ -66,7 +69,11 @@ function rowsToCards(rows, setId) {
         number,
         variant: label,
         tcgplayerId: id,
-        images: { small: `${IMG}/${id}_200w.jpg`, large: `${IMG}/${id}_in_1000x1000.jpg` },
+        images: {
+          small: `${IMG}/${id}_200w.jpg`,
+          large: `${IMG}/${id}_in_1000x1000.jpg`,
+          alt: label ? null : `${BANDAI_IMG}/${number}.png`,
+        },
       });
     }
   }
@@ -93,10 +100,11 @@ const onepiece = {
     const index = await catalogIndex('onepiece');
     const list = (index.setList || []).slice().sort((a, b) =>
       (KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind)) || (b.released || '').localeCompare(a.released || ''));
-    // Quick picks: the three newest boosters.
-    onepiece.quickPicks = list.filter((s) => s.kind === 'Booster').slice(0, 3).map((s) => s.name);
+    // Quick picks: the three newest boosters whose card images already exist
+    // (TCGPlayer lists new sets before their images; the sync checks a sample).
+    onepiece.quickPicks = list.filter((s) => s.kind === 'Booster' && s.imagesReady !== false).slice(0, 3).map((s) => s.name);
     return {
-      sets: list.map((s) => ({ id: s.id, name: s.name, code: s.code, group: s.kind })),
+      sets: list.map((s) => ({ id: s.id, name: s.name, code: s.code, group: s.kind, artPending: s.imagesReady === false })),
       names: new Map(list.map((s) => [s.id, s.name])),
     };
   },

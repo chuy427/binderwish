@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Box, Container, LinearProgress, Stack, Typography } from '@mui/material';
+import { useEffect, useRef, useState } from 'react';
+import { Box, Container, LinearProgress, Stack, Typography, useMediaQuery } from '@mui/material';
 import LayersIcon from '@mui/icons-material/Layers';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import PrintIcon from '@mui/icons-material/Print';
@@ -89,41 +89,93 @@ function ScanVisual({ showcase }) {
 
 const VISUALS = [PickVisual, OwnVisual, PrintVisual, ScanVisual];
 
+const STEP_VH = 70; // scroll distance per step while the panel is pinned
+
+// The step panel. On desktop it's pinned (sticky) while the section scrolls by,
+// and the scroll position picks the step — scroll down to advance, and the page
+// moves on after step 4. On phones (where the stacked panel is taller than the
+// screen) the steps are tapped through and auto-advance instead.
 export default function HowItWorks({ showcase }) {
+  const desktop = useMediaQuery('(min-width: 900px)');
   const [hover, setHover] = useState(false);
-  const [step, setStep] = useRotation(STEPS.length, { interval: 5000, paused: hover });
+  const [rotStep, setRotStep] = useRotation(STEPS.length, { interval: 5000, paused: hover || desktop });
+  const [scrollStep, setScrollStep] = useState(0);
+  const trackRef = useRef(null);
+
+  useEffect(() => {
+    if (!desktop) return;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const el = trackRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const travel = rect.height - window.innerHeight;
+      const progress = Math.min(0.9999, Math.max(0, -rect.top / Math.max(1, travel)));
+      setScrollStep(Math.floor(progress * STEPS.length));
+    };
+    const onScroll = () => { if (!frame) frame = requestAnimationFrame(update); };
+    update();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    return () => { window.removeEventListener('scroll', onScroll); window.removeEventListener('resize', onScroll); cancelAnimationFrame(frame); };
+  }, [desktop]);
+
+  const step = desktop ? scrollStep : rotStep;
+  // Desktop: clicking a step scrolls to the middle of that step's stretch.
+  const goTo = (i) => {
+    if (!desktop) { setRotStep(i); return; }
+    const el = trackRef.current;
+    const top = el.getBoundingClientRect().top + window.scrollY;
+    const travel = el.offsetHeight - window.innerHeight;
+    window.scrollTo({ top: top + ((i + 0.5) / STEPS.length) * travel, behavior: 'smooth' });
+  };
   const Visual = VISUALS[step];
+
+  const panel = (
+    <Box onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+      sx={{ position: 'relative', borderRadius: '28px', bgcolor: '#171717', border: '1px solid rgba(255,255,255,.07)', overflow: 'hidden',
+        display: 'grid', gridTemplateColumns: { xs: '1fr', md: '72px 1fr 1fr' }, minHeight: { md: 460 } }}>
+      {/* Vertical step nav, with a progress rail on desktop */}
+      <Stack direction={{ xs: 'row', md: 'column' }} spacing={1.5} sx={{ p: 2, justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
+        {STEPS.map((s, i) => (
+          <Box key={s.title} component="button" onClick={() => goTo(i)} aria-label={s.title} aria-pressed={i === step}
+            sx={{ width: 44, height: 44, borderRadius: '50%', border: 0, cursor: 'pointer', display: 'grid', placeItems: 'center', position: 'relative', zIndex: 1,
+              bgcolor: i === step ? '#F4F1EE' : i < step ? 'rgba(255,99,71,.35)' : 'rgba(255,255,255,.08)',
+              color: i === step ? '#111' : 'rgba(255,255,255,.75)', transition: 'background-color .25s' }}>
+            {s.icon}
+          </Box>
+        ))}
+      </Stack>
+      <Box key={`t${step}`} className="bw-swap" sx={{ p: { xs: 3, md: 6 }, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+        <Typography variant="overline" color="text.secondary">Step {step + 1} of 4</Typography>
+        <Typography variant="h3" sx={{ fontSize: { xs: 26, md: 38 }, mb: 2 }}>{STEPS[step].title}</Typography>
+        <Typography color="text.secondary" sx={{ maxWidth: 420 }}>{STEPS[step].body}</Typography>
+        {desktop && step < STEPS.length - 1 && (
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 4, opacity: 0.7 }}>Scroll to continue ↓</Typography>
+        )}
+      </Box>
+      <Box key={`v${step}-${showcase?.gameId}`} className="bw-swap" sx={{ p: { xs: 3, md: 5 }, display: 'grid', placeItems: 'center',
+        background: 'radial-gradient(ellipse at 60% 40%, rgba(255,99,71,.16), transparent 60%)' }}>
+        <Visual showcase={showcase} />
+      </Box>
+    </Box>
+  );
+
   return (
     <Container maxWidth="lg" sx={{ py: { xs: 6, md: 10 } }}>
       <Reveal sx={{ textAlign: 'center', mb: 5 }}>
         <Typography variant="overline" color="primary">How it works</Typography>
         <Typography variant="h2" sx={{ fontSize: { xs: 28, md: 48 } }}>From empty pockets<br />to a finished binder</Typography>
       </Reveal>
-      <Reveal>
-        <Box onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
-          sx={{ position: 'relative', borderRadius: '28px', bgcolor: '#171717', border: '1px solid rgba(255,255,255,.07)', overflow: 'hidden',
-            display: 'grid', gridTemplateColumns: { xs: '1fr', md: '72px 1fr 1fr' }, minHeight: { md: 460 } }}>
-          {/* Vertical step nav */}
-          <Stack direction={{ xs: 'row', md: 'column' }} spacing={1.5} sx={{ p: 2, justifyContent: 'center', alignItems: 'center' }}>
-            {STEPS.map((s, i) => (
-              <Box key={s.title} component="button" onClick={() => setStep(i)} aria-label={s.title} aria-pressed={i === step}
-                sx={{ width: 44, height: 44, borderRadius: '50%', border: 0, cursor: 'pointer', display: 'grid', placeItems: 'center',
-                  bgcolor: i === step ? '#F4F1EE' : 'rgba(255,255,255,.08)', color: i === step ? '#111' : 'rgba(255,255,255,.7)', transition: 'background-color .2s' }}>
-                {s.icon}
-              </Box>
-            ))}
-          </Stack>
-          <Box key={`t${step}`} className="bw-swap" sx={{ p: { xs: 3, md: 6 }, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <Typography variant="overline" color="text.secondary">Step {step + 1} of 4</Typography>
-            <Typography variant="h3" sx={{ fontSize: { xs: 26, md: 38 }, mb: 2 }}>{STEPS[step].title}</Typography>
-            <Typography color="text.secondary" sx={{ maxWidth: 420 }}>{STEPS[step].body}</Typography>
-          </Box>
-          <Box key={`v${step}-${showcase?.gameId}`} className="bw-swap" sx={{ p: { xs: 3, md: 5 }, display: 'grid', placeItems: 'center',
-            background: 'radial-gradient(ellipse at 60% 40%, rgba(255,99,71,.16), transparent 60%)' }}>
-            <Visual showcase={showcase} />
-          </Box>
+      {desktop ? (
+        // Tall track; the panel sticks (vertically centered below the app bar) while it scrolls past.
+        <Box ref={trackRef} sx={{ height: `calc(${STEPS.length * STEP_VH}vh + 460px)`, position: 'relative' }}>
+          <Box sx={{ position: 'sticky', top: 'max(88px, calc(50vh - 230px + 32px))' }}>{panel}</Box>
         </Box>
-      </Reveal>
+      ) : (
+        <Reveal>{panel}</Reveal>
+      )}
     </Container>
   );
 }

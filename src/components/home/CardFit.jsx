@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Box } from '@mui/material';
 import PlaceholderCard from '../PlaceholderCard';
 import { cardImage } from '../../catalog';
+import CardImg from '../CardImg';
 
 const CARD_PX = (63 / 25.4) * 96; // 63mm in CSS px
 
@@ -19,7 +20,7 @@ export default function CardFit({ slot, kind = 'owned', options, radius = 6, sx 
   return (
     <Box ref={ref} sx={{ aspectRatio: '63 / 88', borderRadius: `${radius}px`, overflow: 'hidden', position: 'relative', bgcolor: 'rgba(255,255,255,.05)', ...sx }}>
       {slot && kind === 'owned' && src && (
-        <Box component="img" src={src} alt="" loading="lazy" sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        <Box component={CardImg} slot={slot} loading="lazy" sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
       )}
       {slot && kind === 'placeholder' && (
         <Box sx={{ width: '63mm', transformOrigin: 'top left', transform: `scale(${scale})` }}>

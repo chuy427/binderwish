@@ -4,14 +4,14 @@ import { getGame } from '../../games';
 
 // Real cards + live prices for the home page's rotating visuals, per game.
 // Pokémon: 151; Lorcana: The First Chapter; One Piece: the newest booster that
-// already has real prices (brand-new sets can be mostly unpriced).
+// already has card images and real prices (brand-new sets often have neither).
 const SHOWCASE_SET = { pokemon: 'sv03.5', lorcana: '1' };
 
 const cache = new Map(); // gameId -> Promise<showcase>
 
 async function buildShowcase(gameId, setsInfo) {
   const game = getGame(gameId);
-  let candidates = SHOWCASE_SET[gameId] ? [SHOWCASE_SET[gameId]] : setsInfo.sets.filter((s) => s.group === 'Booster').slice(0, 3).map((s) => s.id);
+  let candidates = SHOWCASE_SET[gameId] ? [SHOWCASE_SET[gameId]] : setsInfo.sets.filter((s) => s.group === 'Booster' && !s.artPending).slice(0, 3).map((s) => s.id);
   for (const setId of candidates) {
     const slots = await setSlots(game, setId, setsInfo, { variants: true });
     const priced = slots.filter((s) => s.price != null && s.images);
@@ -47,10 +47,12 @@ export function useShowcase(gameId, setsInfo) {
 export function useRotation(count, { interval = 7000, paused = false } = {}) {
   const [index, setIndex] = useState(0);
   const reduced = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  // A timeout keyed on the index, so every change — automatic or a manual pick —
+  // gets the full interval before the next one.
   useEffect(() => {
     if (reduced || paused || count < 2) return;
-    const t = setInterval(() => setIndex((i) => (i + 1) % count), interval);
-    return () => clearInterval(t);
-  }, [count, interval, paused, reduced]);
+    const t = setTimeout(() => setIndex((i) => (i + 1) % count), interval);
+    return () => clearTimeout(t);
+  }, [index, count, interval, paused, reduced]);
   return [index, setIndex];
 }

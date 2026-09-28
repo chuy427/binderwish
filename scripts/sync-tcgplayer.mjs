@@ -216,17 +216,37 @@ function onePieceKind(abbr, name) {
 // "Mr.1 (Daz.Bonez) - OP14-062 (SP) [Winner]" -> "mr.1" (for the search index)
 const opBaseName = (name) => name.replace(/\s+-\s+\S+-\S+/, '').replace(/\([^)]*\)|\[[^\]]*\]/g, '').replace(/\s+/g, ' ').trim();
 
+// TCGPlayer lists brand-new sets (and their prices) before it has any card images.
+// Sample a few products per set: "imagesReady" when most of the sample loads.
+const OP_IMG = 'https://tcgplayer-cdn.tcgplayer.com/product';
+async function imagesReady(rows) {
+  const n = Math.min(4, rows.length);
+  if (!n) return false;
+  const sample = Array.from({ length: n }, (_, i) => rows[Math.floor((i * rows.length) / n)][1]);
+  const ok = await Promise.all(sample.map((id) =>
+    fetch(`${OP_IMG}/${id}_200w.jpg`, { method: 'HEAD' }).then((r) => r.ok).catch(() => false)));
+  return ok.filter(Boolean).length > n / 2;
+}
+
 async function syncOnePiece() {
   const out = path.join(OUT, 'onepiece');
   const cat = await downloadCategory(68, out);
   const sets = {};
   const setList = [];
   const names = new Map(); // base name -> Set(groupId)
+  const rowsByGroup = new Map();
+  for (const g of cat.withCards) rowsByGroup.set(g.groupId, JSON.parse(await readFile(path.join(out, 'g', `${g.groupId}.json`), 'utf8')));
+  const ready = new Map();
+  await mapLimit(cat.withCards, 8, async (g) => ready.set(g.groupId, await imagesReady(rowsByGroup.get(g.groupId))));
   for (const g of cat.withCards) {
     const id = String(g.groupId);
     sets[id] = [g.groupId];
-    setList.push({ id, name: g.name, code: g.abbreviation || '', released: g.publishedOn || '', kind: onePieceKind(g.abbreviation || '', g.name) });
-    const rows = JSON.parse(await readFile(path.join(out, 'g', `${g.groupId}.json`), 'utf8'));
+    setList.push({
+      id, name: g.name, code: g.abbreviation || '', released: g.publishedOn || '',
+      kind: onePieceKind(g.abbreviation || '', g.name),
+      imagesReady: ready.get(g.groupId),
+    });
+    const rows = rowsByGroup.get(g.groupId);
     for (const r of rows) {
       const n = opBaseName(r[2]);
       if (!names.has(n)) names.set(n, new Set());
@@ -235,7 +255,8 @@ async function syncOnePiece() {
   }
   await writeFile(path.join(out, 'index.json'), JSON.stringify({ generatedAt: new Date().toISOString(), sets, setList }));
   await writeFile(path.join(out, 'search.json'), JSON.stringify([...names].map(([n, gs]) => [n, [...gs]])));
-  return { ...cat, matched: setList.length, total: cat.groups.length, unmatched: [] };
+  const pending = setList.filter((x) => !x.imagesReady).map((x) => `${x.code} (${x.name}) — no images yet`);
+  return { ...cat, matched: setList.length, total: cat.groups.length, unmatched: pending, unmatchedLabel: 'sets without images yet' };
 }
 
 // ----------------------------------------------------------------
@@ -255,7 +276,7 @@ async function main() {
     console.log(`\n[${game}] syncing…`);
     const r = await sync();
     console.log(`[${game}] ${r.cardCount} cards across ${r.withCards.length} groups; matched ${r.matched}/${r.total} sets in ${((Date.now() - started) / 1000).toFixed(0)}s.`);
-    if (r.unmatched.length) console.log(`[${game}] unmatched (${r.unmatched.length}):\n  ${r.unmatched.sort().join('\n  ')}`);
+    if (r.unmatched.length) console.log(`[${game}] ${r.unmatchedLabel || 'unmatched'} (${r.unmatched.length}):\n  ${r.unmatched.sort().join('\n  ')}`);
   }
 }
 

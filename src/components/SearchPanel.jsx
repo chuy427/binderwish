@@ -9,7 +9,8 @@ import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import AddIcon from '@mui/icons-material/Add';
 import PrintIcon from '@mui/icons-material/Print';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
-import { cardImage, setSlots, slotsForSearch } from '../catalog';
+import { setSlots, slotsForSearch } from '../catalog';
+import CardImg from './CardImg';
 import { GAME_LIST } from '../games';
 
 const gridSx = {
@@ -116,7 +117,9 @@ export default function SearchPanel({ game, onGameChange, initialSetId, initialQ
           renderOption={(props, o) => (
             <li {...props} key={o.id}>
               <Box sx={{ flex: 1 }}>{o.name}</Box>
-              <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>{o.code || o.id}</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ ml: 1, whiteSpace: 'nowrap' }}>
+                {o.artPending ? 'art coming soon · ' : ''}{o.code || o.id}
+              </Typography>
             </li>
           )}
           renderInput={(params) => <TextField {...params} label={`${game.name} set you're collecting`} placeholder={`e.g. ${game.quickPicks[0]}`} />}
@@ -212,7 +215,6 @@ export default function SearchPanel({ game, onGameChange, initialSetId, initialQ
 }
 
 function SlotCard({ slot, owned, queued, onToggleOwned, onAdd }) {
-  const src = cardImage(slot);
   return (
     <Card
       sx={{
@@ -225,18 +227,13 @@ function SlotCard({ slot, owned, queued, onToggleOwned, onAdd }) {
       }}
     >
       <CardActionArea onClick={onAdd} sx={{ p: 1 }}>
-        {src ? (
-          <Box component="img" src={src} alt={slot.name} loading="lazy"
+        <Box component={CardImg} slot={slot} alt={slot.name} loading="lazy"
+            fallback={<ArtPending slot={slot} />}
             sx={{
               width: '100%', aspectRatio: '63 / 88', objectFit: 'cover', borderRadius: 1.5, display: 'block', bgcolor: 'action.hover',
               // Missing cards look like "ghosts" until you own them.
               filter: owned ? 'none' : 'grayscale(1)', opacity: owned ? 1 : 0.55, transition: 'filter .2s, opacity .2s',
             }} />
-        ) : (
-          <Box sx={{ width: '100%', aspectRatio: '63 / 88', borderRadius: 1.5, bgcolor: 'action.hover', display: 'grid', placeItems: 'center' }}>
-            <Typography variant="caption" color="text.secondary">No image</Typography>
-          </Box>
-        )}
         <Box sx={{ px: 0.5, pt: 1 }}>
           <Typography variant="subtitle2" noWrap>{slot.name}</Typography>
           <Typography variant="caption" color="text.secondary" noWrap component="div">
@@ -272,5 +269,16 @@ function SlotCard({ slot, owned, queued, onToggleOwned, onAdd }) {
         sx={{ position: 'absolute', top: 14, right: 14, pointerEvents: 'none', opacity: queued ? 1 : 0, transition: 'opacity .15s', boxShadow: 2 }}
       />
     </Card>
+  );
+}
+
+// Shown when a card has no art anywhere yet (typically a set in its reveal season).
+function ArtPending({ slot }) {
+  return (
+    <Box sx={{ width: '100%', aspectRatio: '63 / 88', borderRadius: 1.5, bgcolor: 'action.hover', border: '1px dashed', borderColor: 'divider',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', p: 1, gap: 0.5 }}>
+      <Typography variant="caption" sx={{ fontWeight: 700 }}>#{slot.numberLabel || slot.number}</Typography>
+      <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1.2 }}>Art not released yet</Typography>
+    </Box>
   );
 }

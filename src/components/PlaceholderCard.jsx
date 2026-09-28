@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import CardImg from './CardImg';
 import { cardImage, tcgplayerUrl } from '../catalog';
 import { getGame } from '../games';
 import { TOMATO, TOMATO_TEXT } from '../theme';
@@ -28,8 +30,11 @@ const qrCorner = (slot, options) => {
 };
 
 export default function PlaceholderCard({ slot, options, highRes = false, style }) {
-  if (options.cardStyle === 'clean') return <CleanPlaceholder slot={slot} options={options} style={style} />;
-  const src = cardImage(slot, highRes ? 'high' : 'low');
+  // No card art available (e.g. a set TCGPlayer has listed before its images
+  // exist): use the art-free Clean design rather than a broken image.
+  const [artFailed, setArtFailed] = useState(false);
+  const hasArt = !!(cardImage(slot) || slot?.images?.alt);
+  if (options.cardStyle === 'clean' || artFailed || !hasArt) return <CleanPlaceholder slot={slot} options={options} style={style} />;
   return (
     <div
       className="pcard"
@@ -43,16 +48,8 @@ export default function PlaceholderCard({ slot, options, highRes = false, style 
         ...style,
       }}
     >
-      {src ? (
-        <img src={src} alt={slot.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-      ) : (
-        <div style={{
-          position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', padding: '6mm',
-          font: '600 11pt/1.3 Roboto, system-ui, sans-serif', color: '#333', textAlign: 'center',
-        }}>
-          {slot.name}{slot.setName ? ` — ${slot.setName} #${slot.numberLabel || slot.number}` : ''}
-        </div>
-      )}
+      <CardImg slot={slot} quality={highRes ? 'high' : 'low'} alt={slot.name} onFail={() => setArtFailed(true)}
+        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
 
       {/* Subtle "not a real card" band */}
       <div style={{
