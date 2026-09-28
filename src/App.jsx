@@ -16,6 +16,7 @@ import SiteFootnote from './components/SiteFootnote';
 import WaitlistDialog, { WAITLIST_ENABLED } from './components/WaitlistDialog';
 import { downloadBackup, mergeBackup } from './lib/backup';
 import { DEFAULT_GAME, GAMES, getGame } from './games';
+import { DISPLAY_FONT } from './theme';
 
 // Keys kept from the app's earlier "ProxyScan" name so saved data carries over.
 const STORAGE_KEY = 'proxyscan.v1';
@@ -254,7 +255,7 @@ export default function App() {
 
       <Box className="no-print" sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
         <AppBar position="sticky" color="inherit" elevation={0}
-          sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
+          sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: 'rgba(17,17,17,.72)', backdropFilter: 'blur(14px)' }}>
           <Toolbar sx={{ gap: 2 }}>
             <Box component="a" href={BASE} onClick={(e) => { e.preventDefault(); navigate('home'); }} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: 'inherit', textDecoration: 'none', flex: 1, minWidth: 0 }}>
               <Box sx={{
@@ -264,7 +265,7 @@ export default function App() {
                 <CollectionsBookmarkIcon />
               </Box>
               <Box sx={{ minWidth: 0 }}>
-                <Typography variant="h6" component="div" sx={{ lineHeight: 1.2 }}>BinderWish</Typography>
+                <Typography component="div" sx={{ fontFamily: DISPLAY_FONT, fontWeight: 800, fontSize: 18, lineHeight: 1.2, letterSpacing: '-.01em' }}>BinderWish</Typography>
                 <Typography variant="body2" color="text.secondary" noWrap sx={{ display: { xs: 'none', sm: 'block' } }}>
                   Placeholder cards for your master set binder — scan to find the real one
                 </Typography>
@@ -272,7 +273,8 @@ export default function App() {
             </Box>
             {view !== 'search' ? (
               <Button variant="contained" size="large" startIcon={<CollectionsIcon />} onClick={() => navigate('search')}>
-                Open my binder
+                <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Open my binder</Box>
+                <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>Binder</Box>
               </Button>
             ) : (
             <Button
