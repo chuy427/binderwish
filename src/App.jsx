@@ -11,6 +11,8 @@ import PrintSheetPanel from './components/PrintSheetPanel';
 import PrintArea from './components/PrintArea';
 import HomePage from './components/HomePage';
 import BackupSection from './components/BackupSection';
+import PrivacyPage from './components/PrivacyPage';
+import SiteFootnote from './components/SiteFootnote';
 import WaitlistDialog, { WAITLIST_ENABLED } from './components/WaitlistDialog';
 import { downloadBackup, mergeBackup } from './lib/backup';
 import { DEFAULT_GAME, GAMES, getGame } from './games';
@@ -50,6 +52,7 @@ function migrateItem(c) {
 const BASE = import.meta.env.BASE_URL; // e.g. "/binderwish/"
 
 function routeUrl(view, { game, set, q } = {}) {
+  if (view === 'privacy') return `${BASE}privacy`;
   if (view !== 'search') return BASE;
   const params = new URLSearchParams();
   if (game && game !== DEFAULT_GAME) params.set('game', game);
@@ -65,7 +68,7 @@ function readRoute() {
   const path = location.pathname.startsWith(BASE) ? location.pathname.slice(BASE.length) : '';
   const params = new URLSearchParams(location.search);
   return {
-    view: path.replace(/\/$/, '') === 'search' ? 'search' : 'home',
+    view: ({ search: 'search', privacy: 'privacy' })[path.replace(/\/$/, '')] || 'home',
     game: GAMES[params.get('game')] ? params.get('game') : DEFAULT_GAME,
     set: params.get('set') || null,
     q: params.get('q') || '',
@@ -266,7 +269,7 @@ export default function App() {
                 </Typography>
               </Box>
             </Box>
-            {view === 'home' ? (
+            {view !== 'search' ? (
               <Button variant="contained" size="large" startIcon={<CollectionsIcon />} onClick={() => navigate('search')}>
                 Open my binder
               </Button>
@@ -283,7 +286,7 @@ export default function App() {
                 : printing ? 'Preparing…' : `Print ${stats.count}`}
             </Button>
             )}
-            {view !== 'home' && WAITLIST_ENABLED && (
+            {view === 'search' && WAITLIST_ENABLED && (
               <>
                 <Button
                   variant="outlined" size="large" startIcon={<LocalShippingIcon />}
@@ -301,13 +304,16 @@ export default function App() {
           </Toolbar>
         </AppBar>
 
-        {view === 'home' ? (
+        {view === 'privacy' && <PrivacyPage />}
+        {view === 'home' && (
           <HomePage
             setsByGame={setsByGame}
             loadGameSets={getSetsInfo}
             onStart={({ game: g, set, query }) => navigate('search', { game: g, set: set?.id, q: query })}
+            onPrivacy={() => navigate('privacy')}
           />
-        ) : (
+        )}
+        {view === 'search' && (
         <Container maxWidth="xl" sx={{ py: 3 }}>
           <Box sx={{
             display: 'grid',
@@ -350,9 +356,7 @@ export default function App() {
           </Box>
 
           <Typography variant="caption" color="text.secondary" component="footer" sx={{ display: 'block', textAlign: 'center', mt: 4 }}>
-            Placeholders are binder fillers for cards you’re still collecting — not playable or sellable cards.
-            Card data & images via <Link href="https://tcgdex.dev" target="_blank" rel="noopener">TCGdex</Link>; product links to TCGPlayer.
-            Pokémon and all related names are trademarks of Nintendo, Creatures Inc. and GAME FREAK inc. Not affiliated.
+            <SiteFootnote onPrivacy={() => navigate('privacy')} />
           </Typography>
         </Container>
         )}
@@ -371,3 +375,4 @@ export default function App() {
     </>
   );
 }
+

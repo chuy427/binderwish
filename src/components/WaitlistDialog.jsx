@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Alert, Box, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel,
-  FormGroup, FormLabel, Stack, TextField, Typography,
+  FormGroup, FormLabel, Link, Stack, TextField, Typography,
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PlaceholderCard from './PlaceholderCard';
@@ -144,7 +144,9 @@ export default function WaitlistDialog({ open, onClose, queue, count }) {
                 tabIndex={-1} autoComplete="off" aria-hidden="true" style={{ position: 'absolute', left: '-9999px' }} />
               {error && <Alert severity="error">{error}</Alert>}
               <Typography variant="caption" color="text.secondary">
-                We’ll only use your email to tell you when printing launches — no spam, and you can ask us to remove it anytime.
+                We’ll only use your email to tell you when printing launches — no spam, and you can ask us to remove it
+                anytime. Please don’t sign up if you’re under 13. See our{' '}
+                <Link href={`${import.meta.env.BASE_URL}privacy`} target="_blank" rel="noopener">privacy policy</Link>.
               </Typography>
             </Stack>
           </DialogContent>

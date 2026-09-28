@@ -14,6 +14,7 @@ import BinderHero from './BinderHero';
 import PlaceholderCard from './PlaceholderCard';
 import VendorSection from './VendorSection';
 import { GAME_LIST, getGame } from '../games';
+import SiteFootnote from './SiteFootnote';
 
 const STEPS = [
   { icon: <LayersIcon />, title: 'Pick your set', body: 'See every card in the set — and for master sets, every variant: reverse holos, Poké Ball and Master Ball patterns, 1st Editions.' },
@@ -102,7 +103,7 @@ function PocketVisual({ kind }) {
 
 const EMPTY = { sets: [], loaded: false };
 
-export default function HomePage({ setsByGame, loadGameSets, onStart }) {
+export default function HomePage({ setsByGame, loadGameSets, onStart, onPrivacy }) {
   const [input, setInput] = useState('');
   const [value, setValue] = useState(null);
   const [gameId, setGameId] = useState('pokemon');
@@ -300,9 +301,7 @@ export default function HomePage({ setsByGame, loadGameSets, onStart }) {
 
       <Container maxWidth="lg" component="footer" sx={{ py: 4 }}>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center' }}>
-          Placeholders are binder fillers for cards you’re still collecting — not playable or sellable cards.
-          Card data & images via <Link href="https://tcgdex.dev" target="_blank" rel="noopener">TCGdex</Link>; product links to TCGPlayer.
-          Pokémon and all related names are trademarks of Nintendo, Creatures Inc. and GAME FREAK inc. Not affiliated.
+          <SiteFootnote onPrivacy={onPrivacy} />
         </Typography>
       </Container>
     </Box>
