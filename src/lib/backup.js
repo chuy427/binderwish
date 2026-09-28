@@ -49,7 +49,13 @@ export function parseBackup(text, defaultOptions) {
     }));
   const options = {};
   for (const [k, def] of Object.entries(defaultOptions)) {
+    if (k === 'qrLogo') continue;
     if (data.options && typeof data.options[k] === typeof def) options[k] = data.options[k];
+  }
+  // The QR logo must be a small embedded image (see lib/logo.js).
+  const logo = data.options?.qrLogo;
+  if (logo && typeof logo.src === 'string' && /^data:image\/(png|jpeg|webp);base64,/.test(logo.src) && logo.src.length < 400000) {
+    options.qrLogo = { src: logo.src, aspect: Number(logo.aspect) > 0 ? Number(logo.aspect) : 1 };
   }
   return { owned, queue, options, exportedAt: data.exportedAt };
 }

@@ -22,7 +22,7 @@ import { DISPLAY_FONT } from './theme';
 const STORAGE_KEY = 'proxyscan.v1';
 const OWNED_KEY = 'binderwish.owned';
 const DEFAULT_OPTIONS = {
-  paper: 'letter', cardStyle: 'art', qrCorner: 'auto', qrSize: 14, gap: 0.5, cutLines: true, price: false,
+  paper: 'letter', cardStyle: 'art', qrCorner: 'auto', qrSize: 14, qrLogo: null, gap: 0.5, cutLines: true, price: false,
   variants: true, keepPositions: false, newPagePerSet: true,
 };
 // Parallel card-data lookups for cards the bundled catalog couldn't match.

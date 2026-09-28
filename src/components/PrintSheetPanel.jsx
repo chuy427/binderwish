@@ -12,6 +12,8 @@ import SouthWestIcon from '@mui/icons-material/SouthWest';
 import SouthEastIcon from '@mui/icons-material/SouthEast';
 import CollectionsBookmarkIcon from '@mui/icons-material/CollectionsBookmark';
 import PlaceholderCard from './PlaceholderCard';
+import QrLogoControl from './QrLogoControl';
+import { MIN_QR_WITH_LOGO } from '../lib/logo';
 import { cardImage, tcgplayerUrl } from '../catalog';
 
 const SAMPLE = {
@@ -175,8 +177,10 @@ export default function PrintSheetPanel({ queue, options, setOption, onQty, onCl
           </ToggleButtonGroup>
         </Box>
 
-        <LabeledSlider label="QR size" unit="mm" min={12} max={24} step={1} value={options.qrSize} onChange={(v) => setOption('qrSize', v)} />
+        <LabeledSlider label="QR size" unit="mm" min={options.qrLogo?.src ? MIN_QR_WITH_LOGO : 12} max={24} step={1}
+          value={options.qrLogo?.src ? Math.max(options.qrSize, MIN_QR_WITH_LOGO) : options.qrSize} onChange={(v) => setOption('qrSize', v)} />
         </>)}
+        <QrLogoControl options={options} setOption={setOption} />
         <LabeledSlider label="Gap between cards" unit="mm" min={0} max={3} step={0.5} value={options.gap} onChange={(v) => setOption('gap', v)} />
 
         <Box>

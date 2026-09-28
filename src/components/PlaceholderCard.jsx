@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import CardImg from './CardImg';
+import { MIN_QR_WITH_LOGO, qrLogoProps } from '../lib/logo';
 import { cardImage, tcgplayerUrl } from '../catalog';
 import { getGame } from '../games';
 import { TOMATO, TOMATO_TEXT } from '../theme';
@@ -63,10 +64,12 @@ export default function PlaceholderCard({ slot, options, highRes = false, style 
 
       {/* QR to the exact TCGPlayer listing */}
       <div style={{
-        position: 'absolute', ...QR_POSITION[qrCorner(slot, options)], width: `${options.qrSize}mm`,
+        position: 'absolute', ...QR_POSITION[qrCorner(slot, options)],
+        // A logo needs a slightly bigger code to stay easy to scan.
+        width: `${options.qrLogo?.src ? Math.max(options.qrSize, MIN_QR_WITH_LOGO) : options.qrSize}mm`,
         background: '#fff', padding: '0.8mm', borderRadius: '1.2mm', lineHeight: 0, textAlign: 'center',
       }}>
-        <QRCodeSVG value={tcgplayerUrl(slot)} level="M" marginSize={0} style={{ width: '100%', height: 'auto', display: 'block' }} />
+        <QRCodeSVG value={tcgplayerUrl(slot)} {...qrLogoProps(options)} marginSize={0} style={{ width: '100%', height: 'auto', display: 'block' }} />
         {options.price && slot.price != null && (
           <span style={{ display: 'block', font: '700 5.5pt/1.2 Roboto, system-ui, sans-serif', color: '#000', marginTop: '0.4mm' }}>
             ${slot.price.toFixed(2)}
@@ -125,7 +128,7 @@ function CleanPlaceholder({ slot, options, style }) {
 
       {/* Big QR to the exact TCGPlayer listing */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1.4mm' }}>
-        <QRCodeSVG value={tcgplayerUrl(slot)} level="M" marginSize={0} style={{ width: '27mm', height: '27mm', display: 'block' }} />
+        <QRCodeSVG value={tcgplayerUrl(slot)} {...qrLogoProps(options)} marginSize={0} style={{ width: '27mm', height: '27mm', display: 'block' }} />
         <div style={{ font: `600 6pt/1.2 ${FONT}`, color: MUTED }}>
           Scan for today’s price
           {options.price && slot.price != null && <b style={{ color: INK }}> · ${slot.price.toFixed(2)}</b>}
