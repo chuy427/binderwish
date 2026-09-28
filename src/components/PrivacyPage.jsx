@@ -54,7 +54,7 @@ export default function PrivacyPage() {
       <Box component="ul" sx={{ color: 'text.secondary', mt: 0, pl: 3, '& li': { mb: 1 } }}>
         <li><b>GitHub Pages</b> hosts the site (<Link href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement" target="_blank" rel="noopener">GitHub’s privacy statement</Link>).</li>
         <li><b>TCGdex</b> (Pokémon) and <b>Lorcast</b> (Lorcana) provide card lists, search and images. Your searches are sent to them to get results.</li>
-        <li><b>TCGPlayer</b>, only when you open a card link or scan a placeholder’s QR code (<Link href="https://www.tcgplayer.com/privacy-policy" target="_blank" rel="noopener">TCGPlayer’s privacy policy</Link>).</li>
+        <li><b>TCGPlayer</b>: its image servers supply One Piece card images, and you visit TCGPlayer itself when you open a card link or scan a placeholder’s QR code (<Link href="https://www.tcgplayer.com/privacy-policy" target="_blank" rel="noopener">TCGPlayer’s privacy policy</Link>).</li>
         <li><b>Formspree</b>, only if you submit the waitlist form.</li>
       </Box>
       <P>

@@ -9,8 +9,16 @@ const CATALOG = `${import.meta.env.BASE_URL}tcgplayer`;
 // mapped to this set. The index is re-checked hourly; group files are keyed by the
 // catalog build time, so each (daily) rebuild is fetched fresh and never mixed
 // with a stale cached copy.
+export const catalogIndex = (game) => getJSON(`${CATALOG}/${game}/index.json`, TTL.catalogIndex).catch(() => ({}));
+
+// URL of another file in a game's catalog, versioned by the catalog build.
+export async function catalogFile(game, file) {
+  const index = await catalogIndex(game);
+  return `${CATALOG}/${game}/${file}?v=${encodeURIComponent(index.generatedAt || '')}`;
+}
+
 export async function catalogRows(game, setId) {
-  const index = await getJSON(`${CATALOG}/${game}/index.json`, TTL.catalogIndex).catch(() => ({}));
+  const index = await catalogIndex(game);
   const groups = index.sets?.[setId];
   if (!groups?.length) return [];
   const v = encodeURIComponent(index.generatedAt || '');
@@ -44,7 +52,7 @@ export function matchByNumberAndName(rows, number, name) {
   return [...pool.filter(isPlain), ...pool.filter((r) => !isPlain(r))];
 }
 
-const PRINTING_ORDER = ['1st Edition Holofoil', '1st Edition', 'Unlimited Holofoil', 'Unlimited', 'Normal', 'Holofoil', 'Reverse Holofoil', 'Cold Foil'];
+const PRINTING_ORDER = ['1st Edition Holofoil', '1st Edition', 'Unlimited Holofoil', 'Unlimited', 'Normal', 'Holofoil', 'Foil', 'Reverse Holofoil', 'Cold Foil'];
 const PRINTING_LABEL = {
   '1st Edition Holofoil': '1st Edition Holo',
   '1st Edition': '1st Edition',
@@ -54,6 +62,7 @@ const PRINTING_LABEL = {
   Holofoil: 'Holo',
   'Reverse Holofoil': 'Reverse Holo',
   'Cold Foil': 'Cold Foil',
+  Foil: 'Foil',
 };
 const printingRank = (p) => { const i = PRINTING_ORDER.indexOf(p); return i < 0 ? 99 : i; };
 const variantName = (productName) => (productName.match(/\(([^)]*)\)/)?.[1] || '')
@@ -112,7 +121,9 @@ function makeSlot(game, card, setsInfo, variant, order) {
 export async function slotsForCards(game, cards, setId, setsInfo, { variants = true } = {}) {
   const rows = await catalogRows(game.id, setId);
   const slots = [];
-  cards.forEach((card, ci) => {
+  // With variants off, games whose variants are separate cards (One Piece) drop them.
+  const list0 = variants || !game.isVariantCard ? cards : cards.filter((c) => !game.isVariantCard(c));
+  list0.forEach((card, ci) => {
     const products = rows.length ? game.matchProducts(rows, card) : [];
     const vs = productVariants(products, game.specialVariant?.(card) || '');
     const list = vs.length ? (variants ? vs : vs.slice(0, 1)) : [null];

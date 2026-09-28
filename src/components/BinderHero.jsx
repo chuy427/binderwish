@@ -15,7 +15,7 @@ const RIGHT = [
   { n: 13, kind: 'placeholder', variant: 'Reverse Holo', price: 0.25 }, { n: 14, kind: 'owned' }, { n: 15, kind: 'placeholder', price: 1.89 },
   { n: 16, kind: 'owned' }, { n: 17, kind: 'empty' }, { n: 18, kind: 'owned' },
 ];
-const HERO_OPTIONS = { qrPos: 'br', qrSize: 14, price: true };
+const HERO_OPTIONS = { qrCorner: 'br', qrSize: 14, price: true };
 const CARD_PX = (63 / 25.4) * 96; // 63mm in CSS px
 
 // Scale factor that fits a real-size card into its pocket.

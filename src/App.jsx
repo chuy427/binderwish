@@ -21,7 +21,7 @@ import { DEFAULT_GAME, GAMES, getGame } from './games';
 const STORAGE_KEY = 'proxyscan.v1';
 const OWNED_KEY = 'binderwish.owned';
 const DEFAULT_OPTIONS = {
-  paper: 'letter', cardStyle: 'art', qrPos: 'br', qrSize: 14, gap: 0.5, cutLines: true, price: false,
+  paper: 'letter', cardStyle: 'art', qrCorner: 'auto', qrSize: 14, gap: 0.5, cutLines: true, price: false,
   variants: true, keepPositions: false, newPagePerSet: true,
 };
 // Parallel card-data lookups for cards the bundled catalog couldn't match.
@@ -85,7 +85,8 @@ function loadSaved() {
       queue = saved.queue.map(migrateItem).map((c) => (c.needsLookup && !c.tcgplayerId ? { ...c, status: 'pending' } : c));
     }
     options = { ...DEFAULT_OPTIONS, ...saved.options };
-    delete options.qrOpacity; delete options.style; // removed options
+    // Removed / renamed options (qrPos became qrCorner, which adds 'auto').
+    delete options.qrOpacity; delete options.style; delete options.qrPos;
   } catch {}
   try { owned = new Set(JSON.parse(localStorage.getItem(OWNED_KEY) || '[]')); } catch {}
   return { queue, options, owned };

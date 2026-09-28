@@ -13,7 +13,7 @@ import pokemon from '../games/pokemon';
 
 const SHOWCASE_SET = 'sv03.5'; // 151 — lots of recognizable high-value cards
 const CARD_PX = (63 / 25.4) * 96; // 63mm in CSS px
-const SHOWCASE_OPTIONS = { qrPos: 'br', qrSize: 14, price: true };
+const SHOWCASE_OPTIONS = { qrCorner: 'br', qrSize: 14, price: true };
 
 const BENEFITS = [
   {

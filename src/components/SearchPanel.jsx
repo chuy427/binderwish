@@ -112,10 +112,11 @@ export default function SearchPanel({ game, onGameChange, initialSetId, initialQ
           onChange={(_, v) => { setSet(v); setFilter('all'); if (!v) { setSlotsState([]); setSearched(null); } }}
           getOptionLabel={(o) => o.name}
           isOptionEqualToValue={(a, b) => a.id === b.id}
+          groupBy={setsInfo.sets.some((s) => s.group) ? (o) => o.group : undefined}
           renderOption={(props, o) => (
             <li {...props} key={o.id}>
               <Box sx={{ flex: 1 }}>{o.name}</Box>
-              <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>{o.id}</Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>{o.code || o.id}</Typography>
             </li>
           )}
           renderInput={(params) => <TextField {...params} label={`${game.name} set you're collecting`} placeholder={`e.g. ${game.quickPicks[0]}`} />}

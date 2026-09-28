@@ -5,9 +5,9 @@ import { TOMATO, TOMATO_TEXT } from '../theme';
 
 const QR_INSET = '3.5mm';
 // Where the "not a real card" band sits, per game — over a part of the card that
-// doesn't hide its name or number (Pokémon: attack area; Lorcana: lower art, since
-// the name and version sit mid-card).
-const BAND_TOP = { pokemon: '52mm', lorcana: '30mm' };
+// doesn't hide its name or number (Pokémon: attack area; Lorcana and One Piece:
+// the art, since their name / effect text sit mid-card and below).
+const BAND_TOP = { pokemon: '52mm', lorcana: '30mm', onepiece: '30mm' };
 const QR_POSITION = {
   br: { right: QR_INSET, bottom: QR_INSET },
   bl: { left: QR_INSET, bottom: QR_INSET },
@@ -20,6 +20,13 @@ const QR_POSITION = {
 // since Poké Ball / Master Ball / reverse printings share the same art — and a
 // QR code to the exact TCGPlayer listing. Plain elements + inline styles (not
 // MUI) so it prints identically everywhere.
+// 'auto' = the game's preferred corner (One Piece: top-right, clear of the card
+// name along the bottom); otherwise the corner the user picked.
+const qrCorner = (slot, options) => {
+  const c = options.qrCorner || options.qrPos || 'auto';
+  return c === 'auto' ? (getGame(slot.game).qrCorner || 'br') : c;
+};
+
 export default function PlaceholderCard({ slot, options, highRes = false, style }) {
   if (options.cardStyle === 'clean') return <CleanPlaceholder slot={slot} options={options} style={style} />;
   const src = cardImage(slot, highRes ? 'high' : 'low');
@@ -59,7 +66,7 @@ export default function PlaceholderCard({ slot, options, highRes = false, style 
 
       {/* QR to the exact TCGPlayer listing */}
       <div style={{
-        position: 'absolute', ...QR_POSITION[options.qrPos], width: `${options.qrSize}mm`,
+        position: 'absolute', ...QR_POSITION[qrCorner(slot, options)], width: `${options.qrSize}mm`,
         background: '#fff', padding: '0.8mm', borderRadius: '1.2mm', lineHeight: 0, textAlign: 'center',
       }}>
         <QRCodeSVG value={tcgplayerUrl(slot)} level="M" marginSize={0} style={{ width: '100%', height: 'auto', display: 'block' }} />

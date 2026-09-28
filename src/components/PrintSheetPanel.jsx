@@ -164,9 +164,10 @@ export default function PrintSheetPanel({ queue, options, setOption, onQty, onCl
           <Typography variant="body2" gutterBottom>QR position</Typography>
           <ToggleButtonGroup
             exclusive size="small" fullWidth color="primary"
-            value={options.qrPos}
-            onChange={(_, v) => v && setOption('qrPos', v)}
+            value={options.qrCorner}
+            onChange={(_, v) => v && setOption('qrCorner', v)}
           >
+            <ToggleButton value="auto" aria-label="Auto"><Tooltip title="Best corner for each game (One Piece: top right)"><span>Auto</span></Tooltip></ToggleButton>
             <ToggleButton value="tl" aria-label="Top left"><Tooltip title="Top left"><NorthWestIcon fontSize="small" /></Tooltip></ToggleButton>
             <ToggleButton value="tr" aria-label="Top right"><Tooltip title="Top right"><NorthEastIcon fontSize="small" /></Tooltip></ToggleButton>
             <ToggleButton value="bl" aria-label="Bottom left"><Tooltip title="Bottom left"><SouthWestIcon fontSize="small" /></Tooltip></ToggleButton>

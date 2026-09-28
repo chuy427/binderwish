@@ -1,14 +1,15 @@
 # BinderWish
 
 Print card-sized placeholders for the trading cards missing from your master
-set binder — Pokémon and Disney Lorcana so far. Each placeholder is the card art with a subtle
+set binder — Pokémon, Disney Lorcana and the One Piece Card Game so far. Each placeholder is the card art with a subtle
 "placeholder / not a real card" band (naming the variant) and a QR code to the
 exact TCGPlayer listing — so when you flip through the binder you can scan a gap
 and buy the real card.
 
 - **Master sets**: every printing gets its own slot — reverse holos, Poké Ball /
   Master Ball patterns, 1st Edition, Lorcana Cold Foils, Enchanted / Epic /
-  Iconic cards, etc. — each linking to its own listing.
+  Iconic cards, One Piece Alternate Art / Manga / SP / event stamps, etc. — each
+  linking to its own listing.
 - **Owned checklist**: mark what you have; see progress and what's left to buy,
   and print placeholders only for the missing slots. Marking a card owned takes
   it off the print sheet. (Saved in your browser.)
@@ -32,6 +33,9 @@ and buy the real card.
 - Card lists, images and search (called from the browser, cached locally):
   - Pokémon: [TCGdex](https://tcgdex.dev)
   - Lorcana: [Lorcast](https://lorcast.com) (asks for 50–100 ms between requests)
+  - One Piece: the bundled TCGPlayer catalog itself (every variant is its own
+    product), with TCGPlayer's product images — which, like all publicly
+    available One Piece card images, carry Bandai's "SAMPLE" watermark
 - Variants, TCGPlayer product IDs and per-printing prices: a static catalog per
   game built from [tcgcsv.com](https://tcgcsv.com) (a daily mirror of TCGPlayer's
   catalog) by `scripts/sync-tcgplayer.mjs`, into `public/tcgplayer/<game>/`.

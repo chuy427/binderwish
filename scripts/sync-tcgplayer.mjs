@@ -4,7 +4,7 @@
 // link every card/variant to TCGPlayer (and don't carry per-printing prices), and
 // neither TCGPlayer nor tcgcsv allow cross-origin requests from the browser.
 //
-// Output (served as static files), per game (pokemon, lorcana):
+// Output (served as static files), per game (pokemon, lorcana, onepiece):
 //   public/tcgplayer/<game>/index.json        { generatedAt, sets: { <setId>: [groupId, ...] } }
 //   public/tcgplayer/<game>/g/<groupId>.json  [[number, productId, name, { <printing>: marketPrice|null }], ...]
 //     setId    = the card-data API's set id (TCGdex for Pokémon, Lorcast set code for Lorcana)
@@ -13,7 +13,7 @@
 // Run: npm run sync-tcgplayer   (also runs automatically before every `npm run build`;
 //      `--if-missing` only syncs when no catalog exists yet — used by `npm run dev`)
 
-import { access, mkdir, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -200,9 +200,47 @@ async function syncLorcana() {
   return { ...cat, matched: Object.keys(sets).length, total: lorcastSets.length, unmatched };
 }
 
+// ---------------------------------------------------------------- One Piece (catalog only)
+
+// One Piece has no separate card-data API here: the TCGPlayer catalog *is* the
+// card list (every variant is its own product with its own image). Each group is
+// a set; the index also carries the set list and a small name index for search.
+function onePieceKind(abbr, name) {
+  if (/\bRE\b|\bANN\b|release event|tournament cards/i.test(`${abbr} ${name}`)) return 'Other';
+  if (/^OP\d/.test(abbr)) return 'Booster';
+  if (/^(EB|PRB)/.test(abbr)) return 'Extra & Premium';
+  if (/^ST/.test(abbr)) return 'Starter Deck';
+  return 'Other';
+}
+
+// "Mr.1 (Daz.Bonez) - OP14-062 (SP) [Winner]" -> "mr.1" (for the search index)
+const opBaseName = (name) => name.replace(/\s+-\s+\S+-\S+/, '').replace(/\([^)]*\)|\[[^\]]*\]/g, '').replace(/\s+/g, ' ').trim();
+
+async function syncOnePiece() {
+  const out = path.join(OUT, 'onepiece');
+  const cat = await downloadCategory(68, out);
+  const sets = {};
+  const setList = [];
+  const names = new Map(); // base name -> Set(groupId)
+  for (const g of cat.withCards) {
+    const id = String(g.groupId);
+    sets[id] = [g.groupId];
+    setList.push({ id, name: g.name, code: g.abbreviation || '', released: g.publishedOn || '', kind: onePieceKind(g.abbreviation || '', g.name) });
+    const rows = JSON.parse(await readFile(path.join(out, 'g', `${g.groupId}.json`), 'utf8'));
+    for (const r of rows) {
+      const n = opBaseName(r[2]);
+      if (!names.has(n)) names.set(n, new Set());
+      names.get(n).add(g.groupId);
+    }
+  }
+  await writeFile(path.join(out, 'index.json'), JSON.stringify({ generatedAt: new Date().toISOString(), sets, setList }));
+  await writeFile(path.join(out, 'search.json'), JSON.stringify([...names].map(([n, gs]) => [n, [...gs]])));
+  return { ...cat, matched: setList.length, total: cat.groups.length, unmatched: [] };
+}
+
 // ----------------------------------------------------------------
 
-const GAMES = { pokemon: syncPokemon, lorcana: syncLorcana };
+const GAMES = { pokemon: syncPokemon, lorcana: syncLorcana, onepiece: syncOnePiece };
 
 async function main() {
   if (process.argv.includes('--if-missing')) {

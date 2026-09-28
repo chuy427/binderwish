@@ -72,7 +72,7 @@ const OPTIONS = [
   },
 ];
 
-const SAMPLE_OPTIONS = { qrPos: 'br', qrSize: 14, price: true };
+const SAMPLE_OPTIONS = { qrCorner: 'br', qrSize: 14, price: true };
 const SAMPLE_SLOT = {
   name: 'Charizard ex', image: 'https://assets.tcgdex.net/en/sv/sv03.5/006', tcgplayerId: 502558,
   variantLabel: null, price: 7.56,
