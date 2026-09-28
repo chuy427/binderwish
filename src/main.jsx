@@ -12,6 +12,9 @@ import './site.css';
 import './print.css';
 import theme from './theme';
 import App from './App';
+import { reloadIfOutdated } from './lib/freshness';
+
+reloadIfOutdated();
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

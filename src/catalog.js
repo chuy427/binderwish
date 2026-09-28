@@ -9,7 +9,9 @@ const CATALOG = `${import.meta.env.BASE_URL}tcgplayer`;
 // mapped to this set. The index is re-checked hourly; group files are keyed by the
 // catalog build time, so each (daily) rebuild is fetched fresh and never mixed
 // with a stale cached copy.
-export const catalogIndex = (game) => getJSON(`${CATALOG}/${game}/index.json`, TTL.catalogIndex).catch(() => ({}));
+// Keyed by the site build, so a deploy always brings a fresh index (the daily
+// rebuild is also a deploy); otherwise re-checked hourly.
+export const catalogIndex = (game) => getJSON(`${CATALOG}/${game}/index.json?b=${__BUILD_ID__}`, TTL.catalogIndex).catch(() => ({}));
 
 // URL of another file in a game's catalog, versioned by the catalog build.
 export async function catalogFile(game, file) {
