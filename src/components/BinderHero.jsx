@@ -67,7 +67,7 @@ function Page({ slots }) {
     <Box sx={{
       display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: { xs: 0.75, sm: 1.25 },
       p: { xs: 1, sm: 1.75 }, borderRadius: 2,
-      background: 'linear-gradient(180deg, #2b2640, #221e33)',
+      background: 'linear-gradient(180deg, #2a2627, #1f1c1d)',
       boxShadow: 'inset 0 0 0 1px rgba(255,255,255,.06)',
     }}>
       {slots.map((s, i) => <Pocket key={i} slot={s} />)}
@@ -80,14 +80,14 @@ export default function BinderHero() {
     <Box aria-hidden sx={{
       position: 'absolute', inset: 0, overflow: 'hidden',
       display: 'grid', placeItems: 'center',
-      background: 'radial-gradient(ellipse at 50% 40%, #3a2f6b 0%, #16131f 70%)',
+      background: 'radial-gradient(ellipse at 50% 40%, #3d2a26 0%, #141213 70%)',
     }}>
       <Box sx={{
         width: { xs: '160%', sm: '120%', md: 'min(1250px, 100%)' },
         transform: 'perspective(1600px) rotateX(18deg) rotateZ(-4deg) translateY(4%)',
         display: 'grid', gridTemplateColumns: '1fr 44px 1fr', alignItems: 'stretch',
         p: { xs: 1.5, sm: 2.5 }, borderRadius: 4,
-        background: 'linear-gradient(135deg, #3b2f7a, #231c4d)',
+        background: 'linear-gradient(135deg, #3a3435, #231f20)',
         boxShadow: '0 40px 80px rgba(0,0,0,.55), inset 0 0 0 2px rgba(255,255,255,.06)',
         opacity: 0.9,
       }}>
@@ -101,7 +101,7 @@ export default function BinderHero() {
         <Page slots={RIGHT} />
       </Box>
       {/* Legibility overlay for the search on top */}
-      <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(14,11,24,.65) 0%, rgba(14,11,24,.55) 45%, rgba(14,11,24,.88) 100%)' }} />
+      <Box sx={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, rgba(16,12,12,.65) 0%, rgba(16,12,12,.55) 45%, rgba(16,12,12,.88) 100%)' }} />
     </Box>
   );
 }

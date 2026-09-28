@@ -15,6 +15,7 @@ import PlaceholderCard from './PlaceholderCard';
 import VendorSection from './VendorSection';
 import { GAME_LIST, getGame } from '../games';
 import SiteFootnote from './SiteFootnote';
+import { TOMATO, TOMATO_TEXT } from '../theme';
 
 const STEPS = [
   { icon: <LayersIcon />, title: 'Pick your set', body: 'See every card in the set — and for master sets, every variant: reverse holos, Poké Ball and Master Ball patterns, 1st Editions.' },
@@ -138,7 +139,7 @@ export default function HomePage({ setsByGame, loadGameSets, onStart, onPrivacy 
             aria-label="Game"
             sx={{ mb: 1.5, bgcolor: 'rgba(255,255,255,.1)', backdropFilter: 'blur(6px)', borderRadius: 99, p: 0.5,
               '& .MuiToggleButton-root': { color: 'rgba(255,255,255,.85)', border: 0, borderRadius: '99px !important', px: 2.5, py: 0.5 },
-              '& .Mui-selected': { bgcolor: 'rgba(255,255,255,.95) !important', color: '#3b2f7a !important' } }}
+              '& .Mui-selected': { bgcolor: 'rgba(255,255,255,.95) !important', color: `${TOMATO_TEXT} !important` } }}
           >
             {GAME_LIST.map((g) => <ToggleButton key={g.id} value={g.id}>{g.name}</ToggleButton>)}
           </ToggleButtonGroup>
@@ -288,12 +289,12 @@ export default function HomePage({ setsByGame, loadGameSets, onStart, onPrivacy 
       <VendorSection setsInfo={setsByGame.pokemon || EMPTY} onStart={() => onStart({ game: 'pokemon', set: null, query: '' })} />
 
       {/* ---------- Closing CTA ---------- */}
-      <Box sx={{ py: { xs: 6, md: 8 }, textAlign: 'center', background: 'linear-gradient(135deg, #3b2f7a, #6d4aff)', color: '#fff' }}>
+      <Box sx={{ py: { xs: 6, md: 8 }, textAlign: 'center', background: `linear-gradient(135deg, ${TOMATO}, #FF8062)`, color: '#1B1B1F' }}>
         <Container maxWidth="sm">
           <Typography variant="h4" component="h2" sx={{ fontWeight: 800, mb: 1 }}>Ready to fill your binder?</Typography>
           <Typography sx={{ opacity: 0.9, mb: 3 }}>Free, no account needed. Your checklist is saved in your browser.</Typography>
           <Button variant="contained" size="large" onClick={() => onStart({ game: gameId, set: null, query: '' })}
-            sx={{ bgcolor: '#fff', color: '#3b2f7a', borderRadius: 99, px: 4, '&:hover': { bgcolor: '#f0ecff' } }}>
+            sx={{ bgcolor: '#1B1B1F', color: '#fff', borderRadius: 99, px: 4, '&:hover': { bgcolor: '#000' } }}>
             Start your checklist
           </Button>
         </Container>

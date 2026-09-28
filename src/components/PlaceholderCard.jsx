@@ -1,6 +1,7 @@
 import { QRCodeSVG } from 'qrcode.react';
 import { cardImage, tcgplayerUrl } from '../catalog';
 import { getGame } from '../games';
+import { TOMATO, TOMATO_TEXT } from '../theme';
 
 const QR_INSET = '3.5mm';
 // Where the "not a real card" band sits, per game — over a part of the card that
@@ -49,7 +50,7 @@ export default function PlaceholderCard({ slot, options, highRes = false, style 
       {/* Subtle "not a real card" band */}
       <div style={{
         position: 'absolute', top: BAND_TOP[slot.game] || BAND_TOP.pokemon, left: 0, right: 0, padding: '0.8mm 2mm', textAlign: 'center',
-        background: 'rgba(109,74,255,.45)', color: 'rgba(255,255,255,.95)',
+        background: 'rgba(255,99,71,.5)', color: 'rgba(255,255,255,.95)',
         font: '700 5.5pt/1.25 Roboto, system-ui, sans-serif', letterSpacing: '.14em', textTransform: 'uppercase',
       }}>
         Placeholder · not a real card
@@ -75,7 +76,8 @@ export default function PlaceholderCard({ slot, options, highRes = false, style 
 const FONT = 'Roboto, system-ui, sans-serif';
 const INK = '#1d1b26';
 const MUTED = '#6b6879';
-const ACCENT = '#6d4aff';
+const ACCENT = TOMATO;            // lines and borders
+const ACCENT_TEXT = TOMATO_TEXT;  // small text — readable contrast on white
 
 // The art-free placeholder: BinderWish's own design built only from the card's
 // details (game, set, number, name, variant) plus a large QR code. No official
@@ -94,11 +96,11 @@ function CleanPlaceholder({ slot, options, style }) {
     >
       {/* Header: game · set, and the big card number */}
       <div style={{
-        padding: '2.6mm 3.5mm 2.2mm', background: '#f1edff', borderBottom: `0.4mm solid ${ACCENT}`,
+        padding: '2.6mm 3.5mm 2.2mm', background: '#fff1ee', borderBottom: `0.4mm solid ${ACCENT}`,
         display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '2mm',
       }}>
         <div style={{ minWidth: 0 }}>
-          <div style={{ font: `700 5pt/1.2 ${FONT}`, letterSpacing: '.12em', textTransform: 'uppercase', color: ACCENT }}>{gameName}</div>
+          <div style={{ font: `700 5pt/1.2 ${FONT}`, letterSpacing: '.12em', textTransform: 'uppercase', color: ACCENT_TEXT }}>{gameName}</div>
           <div style={{ font: `600 6.5pt/1.2 ${FONT}`, color: MUTED, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{slot.setName}</div>
         </div>
         <div style={{ font: `800 13pt/1 ${FONT}`, whiteSpace: 'nowrap' }}>#{slot.numberLabel || slot.number}</div>
@@ -112,7 +114,7 @@ function CleanPlaceholder({ slot, options, style }) {
         {slot.variantLabel && (
           <div style={{
             display: 'inline-block', marginTop: '1.6mm', padding: '0.5mm 2.2mm', borderRadius: '5mm',
-            border: `0.3mm solid ${ACCENT}`, color: ACCENT, font: `700 6.5pt/1.3 ${FONT}`,
+            border: `0.3mm solid ${ACCENT}`, color: ACCENT_TEXT, font: `700 6.5pt/1.3 ${FONT}`,
           }}>{slot.variantLabel}</div>
         )}
       </div>

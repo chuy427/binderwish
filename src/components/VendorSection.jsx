@@ -7,6 +7,7 @@ import AutorenewIcon from '@mui/icons-material/Autorenew';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import StorefrontIcon from '@mui/icons-material/Storefront';
 import PlaceholderCard from './PlaceholderCard';
+import { TOMATO_TEXT } from '../theme';
 import { setSlots } from '../catalog';
 import pokemon from '../games/pokemon';
 
@@ -108,11 +109,11 @@ function DisplayCase({ setsInfo }) {
 
 export default function VendorSection({ setsInfo, onStart }) {
   return (
-    <Box sx={{ py: { xs: 6, md: 10 }, color: '#fff', background: 'radial-gradient(ellipse at 20% 0%, #3a2f6b 0%, #16131f 65%)' }}>
+    <Box sx={{ py: { xs: 6, md: 10 }, color: '#fff', background: 'radial-gradient(ellipse at 20% 0%, #3d2a26 0%, #161313 65%)' }}>
       <Container maxWidth="lg">
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.1fr 1fr' }, gap: { xs: 5, md: 8 }, alignItems: 'center' }}>
           <Box>
-            <Typography variant="overline" sx={{ color: '#b9a8ff', fontWeight: 700 }}>For vendors & card shops</Typography>
+            <Typography variant="overline" sx={{ color: '#FF8A73', fontWeight: 700 }}>For vendors & card shops</Typography>
             <Typography variant="h4" component="h2" sx={{ fontWeight: 800, mb: 1.5 }}>
               Let the binder answer “how much?”
             </Typography>
@@ -123,7 +124,7 @@ export default function VendorSection({ setsInfo, onStart }) {
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2.5 }}>
               {BENEFITS.map((b) => (
                 <Stack key={b.title} direction="row" spacing={1.5}>
-                  <Box sx={{ width: 36, height: 36, flexShrink: 0, borderRadius: 1.5, display: 'grid', placeItems: 'center', bgcolor: 'rgba(164,139,255,.2)', color: '#cbbcff' }}>
+                  <Box sx={{ width: 36, height: 36, flexShrink: 0, borderRadius: 1.5, display: 'grid', placeItems: 'center', bgcolor: 'rgba(255,99,71,.18)', color: '#FF9C88' }}>
                     {b.icon}
                   </Box>
                   <Box>
@@ -137,7 +138,7 @@ export default function VendorSection({ setsInfo, onStart }) {
               TCGPlayer’s market price is a reference point — you still set your own prices.
             </Typography>
             <Button variant="contained" size="large" onClick={() => onStart({ set: null, query: '' })}
-              sx={{ mt: 3, bgcolor: '#fff', color: '#3b2f7a', borderRadius: 99, px: 4, '&:hover': { bgcolor: '#f0ecff' } }}>
+              sx={{ mt: 3, bgcolor: '#fff', color: TOMATO_TEXT, borderRadius: 99, px: 4, '&:hover': { bgcolor: '#fff1ee' } }}>
               Build a showcase binder
             </Button>
           </Box>
