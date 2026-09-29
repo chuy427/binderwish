@@ -39,8 +39,10 @@ export default function PrivacyPage() {
       <H>The printing waitlist</H>
       <P>
         If you join the “Get them printed” waitlist, we collect your email address and, if you provide them, roughly
-        how many placeholders you’d order and which games you collect. We use this only to tell you when printed
-        placeholders are available and to judge how much interest there is. We don’t sell it, share it for marketing,
+        how many placeholders you’d order and which games you collect. If you sign up as a vendor or shop, we also
+        collect your business name (optional), where you sell, and which vendor features interest you. We use this
+        only to tell you when printed placeholders or vendor features are available, to judge how much interest
+        there is, and — for vendors — possibly to email you a question or two about what would help you. We don’t sell it, share it for marketing,
         or add you to any other mailing list.
       </P>
       <P>

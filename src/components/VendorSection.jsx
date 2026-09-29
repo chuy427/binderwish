@@ -67,7 +67,7 @@ function DisplayCase({ showcase }) {
   );
 }
 
-export default function VendorSection({ showcase, onStart }) {
+export default function VendorSection({ showcase, onStart, onWaitlist }) {
   return (
     <Box sx={{ py: { xs: 6, md: 10 } }}>
       <Container maxWidth="lg">
@@ -97,9 +97,21 @@ export default function VendorSection({ showcase, onStart }) {
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 3 }}>
               TCGPlayer’s market price is a reference point — you still set your own prices.
             </Typography>
-            <Button variant="contained" size="large" onClick={onStart} sx={{ mt: 3, px: 4 }}>
-              Build a showcase binder
-            </Button>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 3, alignItems: { sm: 'center' } }}>
+              <Button variant="contained" size="large" onClick={onStart} sx={{ px: 4 }}>
+                Build a showcase binder
+              </Button>
+              {onWaitlist && (
+                <Button variant="outlined" size="large" onClick={onWaitlist} sx={{ px: 3 }}>
+                  Join the vendor waitlist
+                </Button>
+              )}
+            </Stack>
+            {onWaitlist && (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+                Coming soon: your shop’s logo on every QR code, and display placeholders printed for you.
+              </Typography>
+            )}
           </Reveal>
           <Reveal delay={150}><DisplayCase showcase={showcase} /></Reveal>
         </Box>

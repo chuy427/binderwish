@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   Alert, Box, Button, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, FormControlLabel,
-  FormGroup, FormLabel, Link, Stack, TextField, Typography,
+  FormGroup, FormLabel, Link, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PlaceholderCard from './PlaceholderCard';
@@ -18,12 +18,33 @@ const SAMPLE = {
   game: 'pokemon', name: 'Charizard ex', setName: '151', number: '006', numberLabel: '006/165',
   variantLabel: 'Holo', tcgplayerId: 502558, price: 7.56,
 };
+// Stand-in shop logo for the vendor preview's QR code.
+const SAMPLE_LOGO = {
+  aspect: 1,
+  src: `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="#FF6347"/><text x="50" y="44" text-anchor="middle" font-family="Arial,sans-serif" font-weight="800" font-size="25" fill="#1B1B1F">YOUR</text><text x="50" y="72" text-anchor="middle" font-family="Arial,sans-serif" font-weight="800" font-size="25" fill="#1B1B1F">LOGO</text></svg>')}`,
+};
 const PREVIEW_PX = 190;
 const CARD_PX = (63 / 25.4) * 96;
 
-// "Get them printed" waitlist: gauges demand for printed-and-shipped, art-free
-// placeholders before building any ordering/fulfillment.
-export default function WaitlistDialog({ open, onClose, queue, count }) {
+// What vendors can tell us they'd use, and where they sell.
+const VENDOR_INTERESTS = [
+  { id: 'logo-qr', label: 'My shop’s logo on the QR codes' },
+  { id: 'printed', label: 'Printed & shipped placeholders' },
+];
+const VENDOR_CHANNELS = [
+  { id: 'card-shows', label: 'Card shows' },
+  { id: 'store', label: 'A local game store' },
+  { id: 'online', label: 'Online' },
+];
+
+// The waitlist: gauges demand before building any ordering, fulfillment or
+// payments. Collectors: printed-and-shipped, art-free placeholders. Vendors:
+// logo QR codes and display placeholders for shows and shops.
+export default function WaitlistDialog({ open, onClose, queue, count, audience = 'collector' }) {
+  const [role, setRole] = useState(audience);
+  const [business, setBusiness] = useState('');
+  const [channels, setChannels] = useState(() => new Set());
+  const [interests, setInterests] = useState(() => new Set());
   const [email, setEmail] = useState('');
   const [qty, setQty] = useState('');
   const [games, setGames] = useState(() => new Set());
@@ -34,10 +55,12 @@ export default function WaitlistDialog({ open, onClose, queue, count }) {
   // Prefill from the current print sheet when opened (without overwriting edits).
   useEffect(() => {
     if (!open) return;
+    setRole(audience);
     if (count) setQty((q) => q || String(count));
     if (queue.length) setGames((g) => (g.size ? g : new Set(queue.map((c) => c.game || 'pokemon'))));
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const vendor = role === 'vendor';
   const sample = queue.find((c) => c.name) || SAMPLE;
   const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
@@ -59,7 +82,10 @@ export default function WaitlistDialog({ open, onClose, queue, count }) {
           email: email.trim(),
           placeholders: qty ? Number(qty) : null,
           games: [...games],
-          source: 'binderwish-print-waitlist',
+          role,
+          ...(vendor && { business: business.trim() || null, sellsAt: [...channels], interestedIn: [...interests] }),
+          source: vendor ? 'binderwish-vendor-waitlist' : 'binderwish-print-waitlist',
+          _subject: vendor ? `BinderWish vendor waitlist${business.trim() ? ` — ${business.trim()}` : ''}` : 'BinderWish printing waitlist',
           _gotcha: gotcha,
         }),
       });
@@ -71,22 +97,34 @@ export default function WaitlistDialog({ open, onClose, queue, count }) {
     }
   }
 
-  const toggleGame = (id) => setGames((s) => {
+  const toggleIn = (setter) => (id) => setter((s) => {
     const n = new Set(s);
     if (n.has(id)) n.delete(id); else n.add(id);
     return n;
   });
+  const toggleGame = toggleIn(setGames);
+  const checkboxes = (items, selected, toggle) => (
+    <FormGroup row>
+      {items.map((o) => (
+        <FormControlLabel key={o.id} label={o.label} control={<Checkbox checked={selected.has(o.id)} onChange={() => toggle(o.id)} />} />
+      ))}
+    </FormGroup>
+  );
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Get your placeholders printed & shipped</DialogTitle>
+      <DialogTitle>{vendor ? 'BinderWish for vendors & shops' : 'Get your placeholders printed & shipped'}</DialogTitle>
       {status === 'done' ? (
         <>
           <DialogContent>
             <Stack spacing={2} sx={{ alignItems: 'center', textAlign: 'center', py: 2 }}>
               <CheckCircleIcon color="success" sx={{ fontSize: 48 }} />
               <Typography variant="h6">You’re on the list!</Typography>
-              <Typography color="text.secondary">We’ll email {email.trim()} when printed placeholders are available.</Typography>
+              <Typography color="text.secondary">
+                {vendor
+                  ? `Thanks! We’ll email ${email.trim()} as vendor features launch — and we may reach out to ask what would help your table or shop most.`
+                  : `We’ll email ${email.trim()} when printed placeholders are available.`}
+              </Typography>
             </Stack>
           </DialogContent>
           <DialogActions><Button variant="contained" onClick={onClose}>Done</Button></DialogActions>
@@ -94,21 +132,39 @@ export default function WaitlistDialog({ open, onClose, queue, count }) {
       ) : (
         <Box component="form" onSubmit={submit} noValidate>
           <DialogContent>
+            <ToggleButtonGroup exclusive fullWidth size="small" value={role} onChange={(_, v) => v && setRole(v)} aria-label="I am a" sx={{ mb: 3 }}>
+              <ToggleButton value="collector">I’m a collector</ToggleButton>
+              <ToggleButton value="vendor">I’m a vendor or shop</ToggleButton>
+            </ToggleButtonGroup>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: `${PREVIEW_PX}px 1fr` }, gap: 3, alignItems: 'start' }}>
               <Box sx={{ width: PREVIEW_PX, height: PREVIEW_PX * (88 / 63), mx: 'auto', borderRadius: 2, overflow: 'hidden', boxShadow: 4 }}>
                 <Box sx={{ width: '63mm', transformOrigin: 'top left', transform: `scale(${PREVIEW_PX / CARD_PX})` }}>
-                  <PlaceholderCard slot={sample} options={{ cardStyle: 'clean', price: false }} style={{ borderRadius: 0 }} />
+                  <PlaceholderCard slot={sample} options={{ cardStyle: 'clean', price: false, qrLogo: vendor ? SAMPLE_LOGO : null }} style={{ borderRadius: 0 }} />
                 </Box>
               </Box>
               <Box>
                 <Typography variant="overline" color="primary" sx={{ fontWeight: 700 }}>Coming soon</Typography>
-                <Typography sx={{ mb: 1.5 }}>
-                  Skip the printer and the scissors. We’re planning to print your placeholders on sturdy cardstock,
-                  pre-cut to card size, in our clean design — and ship them to you, ready to sleeve.
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Join the waitlist and we’ll let you know when it launches.
-                </Typography>
+                {vendor ? (
+                  <>
+                    <Typography sx={{ mb: 1.5 }}>
+                      Placeholders for your display binders — with your shop’s logo in the middle of every QR code, so
+                      each price check keeps your name in front of the customer.
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      We’re shaping vendor features now. Tell us how you sell and we’ll let you know when they launch.
+                    </Typography>
+                  </>
+                ) : (
+                  <>
+                    <Typography sx={{ mb: 1.5 }}>
+                      Skip the printer and the scissors. We’re planning to print your placeholders on sturdy cardstock,
+                      pre-cut to card size, in our clean design — and ship them to you, ready to sleeve.
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Join the waitlist and we’ll let you know when it launches.
+                    </Typography>
+                  </>
+                )}
               </Box>
             </Box>
 
@@ -124,13 +180,29 @@ export default function WaitlistDialog({ open, onClose, queue, count }) {
                 value={email} onChange={(e) => setEmail(e.target.value)}
                 error={!!email && !validEmail} helperText={email && !validEmail ? 'Enter a valid email address' : ' '}
               />
+              {vendor && (
+                <TextField label="Shop or business name (optional)" fullWidth autoComplete="organization"
+                  value={business} onChange={(e) => setBusiness(e.target.value.slice(0, 120))} />
+              )}
+              {vendor && (
+                <Box>
+                  <FormLabel component="legend" sx={{ fontSize: 14 }}>Where do you sell?</FormLabel>
+                  {checkboxes(VENDOR_CHANNELS, channels, toggleIn(setChannels))}
+                </Box>
+              )}
+              {vendor && (
+                <Box>
+                  <FormLabel component="legend" sx={{ fontSize: 14 }}>What would you use?</FormLabel>
+                  {checkboxes(VENDOR_INTERESTS, interests, toggleIn(setInterests))}
+                </Box>
+              )}
               <TextField
-                label="Roughly how many placeholders would you order?" type="number" fullWidth
+                label={vendor ? 'Roughly how many cards do you keep on display?' : 'Roughly how many placeholders would you order?'} type="number" fullWidth
                 value={qty} onChange={(e) => setQty(e.target.value.replace(/[^\d]/g, '').slice(0, 5))}
                 slotProps={{ htmlInput: { min: 1, inputMode: 'numeric' } }}
               />
               <Box>
-                <FormLabel component="legend" sx={{ fontSize: 14 }}>For which games?</FormLabel>
+                <FormLabel component="legend" sx={{ fontSize: 14 }}>{vendor ? 'Which games do you sell?' : 'For which games?'}</FormLabel>
                 <FormGroup row>
                   {GAME_LIST.map((g) => (
                     <FormControlLabel key={g.id} label={g.name}
@@ -144,7 +216,7 @@ export default function WaitlistDialog({ open, onClose, queue, count }) {
                 tabIndex={-1} autoComplete="off" aria-hidden="true" style={{ position: 'absolute', left: '-9999px' }} />
               {error && <Alert severity="error">{error}</Alert>}
               <Typography variant="caption" color="text.secondary">
-                We’ll only use your email to tell you when printing launches — no spam, and you can ask us to remove it
+                We’ll only use your email to tell you when {vendor ? 'vendor features launch' : 'printing launches'} — no spam, and you can ask us to remove it
                 anytime. Please don’t sign up if you’re under 13. See our{' '}
                 <Link href={`${import.meta.env.BASE_URL}privacy`} target="_blank" rel="noopener">privacy policy</Link>.
               </Typography>

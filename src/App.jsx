@@ -124,7 +124,7 @@ export default function App() {
   }, []);
   const [printing, setPrinting] = useState(false);
   const [toast, setToast] = useState(null);
-  const [waitlistOpen, setWaitlistOpen] = useState(false);
+  const [waitlist, setWaitlist] = useState(null); // null | 'collector' | 'vendor'
   // Routes: <base> = home, <base>search?set=<id>|q=<name> = the tool.
   const [route, setRoute] = useState(readRoute);
   useEffect(() => {
@@ -293,12 +293,12 @@ export default function App() {
               <>
                 <Button
                   variant="outlined" size="large" startIcon={<LocalShippingIcon />}
-                  onClick={() => setWaitlistOpen(true)}
+                  onClick={() => setWaitlist('collector')}
                   sx={{ display: { xs: 'none', sm: 'inline-flex' }, flexShrink: 0 }}
                 >
                   Get them printed
                 </Button>
-                <IconButton color="primary" aria-label="Get them printed" onClick={() => setWaitlistOpen(true)}
+                <IconButton color="primary" aria-label="Get them printed" onClick={() => setWaitlist('collector')}
                   sx={{ display: { xs: 'inline-flex', sm: 'none' }, border: 1, borderColor: 'divider' }}>
                   <LocalShippingIcon />
                 </IconButton>
@@ -314,6 +314,7 @@ export default function App() {
             loadGameSets={getSetsInfo}
             onStart={({ game: g, set, query }) => navigate('search', { game: g, set: set?.id, q: query })}
             onPrivacy={() => navigate('privacy')}
+            onVendorWaitlist={WAITLIST_ENABLED ? () => setWaitlist('vendor') : null}
           />
         )}
         {view === 'search' && (
@@ -373,7 +374,7 @@ export default function App() {
         />
       </Box>
 
-      <WaitlistDialog open={waitlistOpen} onClose={() => setWaitlistOpen(false)} queue={queue} count={stats.count} />
+      <WaitlistDialog open={!!waitlist} audience={waitlist || 'collector'} onClose={() => setWaitlist(null)} queue={queue} count={stats.count} />
       {printing && <PrintArea queue={queue} options={options} getSetsInfo={getSetsInfo} onDone={() => setPrinting(false)} />}
     </>
   );

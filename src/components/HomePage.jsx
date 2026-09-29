@@ -12,7 +12,7 @@ import { DEFAULT_GAME, GAME_LIST } from '../games';
 // tiles, sample placeholder, vendor display case) use real cards and live prices
 // from one game — Pokémon until the visitor picks another, with either the
 // search's game toggle or the chips under the binder.
-export default function HomePage({ setsByGame, loadGameSets, onStart, onPrivacy }) {
+export default function HomePage({ setsByGame, loadGameSets, onStart, onPrivacy, onVendorWaitlist }) {
   const [featuredId, setFeaturedId] = useState(DEFAULT_GAME);
   const showcase = useShowcase(featuredId, setsByGame[featuredId]);
 
@@ -35,7 +35,7 @@ export default function HomePage({ setsByGame, loadGameSets, onStart, onPrivacy 
       <FeatureTiles showcase={showcase} onStart={startTool} />
       <Anatomy showcase={showcase} />
       <Compare showcase={showcase} />
-      <VendorSection showcase={showcase} onStart={startTool} />
+      <VendorSection showcase={showcase} onStart={startTool} onWaitlist={onVendorWaitlist} />
       <FinalCta onStart={startTool} />
 
       <Container maxWidth="lg" component="footer" sx={{ py: 4 }}>
