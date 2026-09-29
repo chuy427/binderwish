@@ -42,7 +42,7 @@ export function useShowcase(gameId, setsInfo) {
   return showcase;
 }
 
-// Rotates through games on a timer (paused while `paused`; off entirely for
+// Steps through `count` items on a timer (paused while `paused`; off entirely for
 // visitors who prefer reduced motion).
 export function useRotation(count, { interval = 7000, paused = false } = {}) {
   const [index, setIndex] = useState(0);

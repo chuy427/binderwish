@@ -5,19 +5,18 @@ import HowItWorks from './home/HowItWorks';
 import { Anatomy, Compare, FeatureTiles, FinalCta } from './home/Sections';
 import VendorSection from './VendorSection';
 import SiteFootnote from './SiteFootnote';
-import { useRotation, useShowcase } from './home/useShowcase';
-import { GAME_LIST } from '../games';
+import { useShowcase } from './home/useShowcase';
+import { DEFAULT_GAME, GAME_LIST } from '../games';
 
 // The landing page. Its visuals (hero binder, stickers, how-it-works, feature
-// tiles, sample placeholder, vendor display case) rotate between games using
-// real cards and live prices; the search in the hero has its own game picker.
+// tiles, sample placeholder, vendor display case) use real cards and live prices
+// from one game — Pokémon until the visitor picks another, with either the
+// search's game toggle or the chips under the binder.
 export default function HomePage({ setsByGame, loadGameSets, onStart, onPrivacy }) {
-  const [heroHover, setHeroHover] = useState(false);
-  const [featured, setFeatured] = useRotation(GAME_LIST.length, { interval: 8000, paused: heroHover });
-  const featuredId = GAME_LIST[featured].id;
+  const [featuredId, setFeaturedId] = useState(DEFAULT_GAME);
   const showcase = useShowcase(featuredId, setsByGame[featuredId]);
 
-  // Load every game's set list so each showcase is ready when it rotates in.
+  // Load every game's set list so each showcase is ready when it's picked.
   useEffect(() => { GAME_LIST.forEach((g) => loadGameSets(g.id)); }, [loadGameSets]);
 
   const startTool = () => onStart({ game: featuredId, set: null, query: '' });
@@ -29,9 +28,8 @@ export default function HomePage({ setsByGame, loadGameSets, onStart, onPrivacy 
         loadGameSets={loadGameSets}
         onStart={onStart}
         showcase={showcase}
-        featured={featured}
-        onFeature={setFeatured}
-        onHover={setHeroHover}
+        gameId={featuredId}
+        onGame={setFeaturedId}
       />
       <HowItWorks showcase={showcase} />
       <FeatureTiles showcase={showcase} onStart={startTool} />

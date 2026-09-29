@@ -38,8 +38,9 @@ function Starburst({ children, size = 120 }) {
   );
 }
 
-export default function Hero({ setsByGame, loadGameSets, onStart, showcase, featured, onFeature, onHover }) {
-  const [gameId, setGameId] = useState('pokemon');
+// `gameId` is the page's one featured game: it drives both the search and the
+// binder visuals, and changes only when the visitor picks another game.
+export default function Hero({ setsByGame, loadGameSets, onStart, showcase, gameId, onGame }) {
   const [input, setInput] = useState('');
   const [value, setValue] = useState(null);
   const game = getGame(gameId);
@@ -49,7 +50,7 @@ export default function Hero({ setsByGame, loadGameSets, onStart, showcase, feat
     if (v && typeof v === 'object') onStart({ game: gameId, set: v, query: '' });
     else onStart({ game: gameId, set: null, query: text.trim() });
   }
-  const pickGame = (v) => { if (v) { setGameId(v); setValue(null); setInput(''); loadGameSets(v); } };
+  const pickGame = (v) => { if (v && v !== gameId) { onGame(v); setValue(null); setInput(''); loadGameSets(v); } };
   const chase = showcase?.chase || [];
 
   return (
@@ -103,9 +104,8 @@ export default function Hero({ setsByGame, loadGameSets, onStart, showcase, feat
         </Stack>
       </Container>
 
-      {/* Binder mockup with floating stickers, rotating between games */}
-      <Container maxWidth="lg" sx={{ position: 'relative', mt: { xs: 6, md: 9 } }}
-        onMouseEnter={() => onHover(true)} onMouseLeave={() => onHover(false)}>
+      {/* Binder mockup with floating stickers, for the picked game */}
+      <Container maxWidth="lg" sx={{ position: 'relative', mt: { xs: 6, md: 9 } }}>
         <Box sx={{ position: 'relative', mx: { md: 8 } }}>
           <BinderSpread showcase={showcase} />
 
@@ -144,12 +144,12 @@ export default function Hero({ setsByGame, loadGameSets, onStart, showcase, feat
           )}
         </Box>
 
-        {/* Which game is featured — rotates on its own; click to pick */}
+        {/* Which game is featured — click to switch (the search follows) */}
         <Stack direction="row" spacing={1} sx={{ justifyContent: 'center', mt: { xs: 3, md: 5 } }}>
-          {GAME_LIST.map((g, i) => (
-            <Chip key={g.id} size="small" onClick={() => onFeature(i)}
-              label={i === featured && showcase ? `${g.name} · ${showcase.setName}` : g.name}
-              sx={{ bgcolor: i === featured ? TOMATO : 'rgba(255,255,255,.08)', color: i === featured ? '#1B1B1F' : 'text.secondary', fontWeight: 600 }} />
+          {GAME_LIST.map((g) => (
+            <Chip key={g.id} size="small" onClick={() => pickGame(g.id)}
+              label={g.id === gameId && showcase ? `${g.name} · ${showcase.setName}` : g.name}
+              sx={{ bgcolor: g.id === gameId ? TOMATO : 'rgba(255,255,255,.08)', color: g.id === gameId ? '#1B1B1F' : 'text.secondary', fontWeight: 600 }} />
           ))}
         </Stack>
       </Container>
