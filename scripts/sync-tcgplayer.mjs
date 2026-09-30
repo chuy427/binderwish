@@ -84,8 +84,8 @@ async function downloadCategory(category, out) {
   return { groups, withCards: groups.filter((g) => g.cardRows > 0), productToGroup, cardCount };
 }
 
-async function writeIndex(out, sets) {
-  await writeFile(path.join(out, 'index.json'), JSON.stringify({ generatedAt: new Date().toISOString(), sets }));
+async function writeIndex(out, sets, extra = {}) {
+  await writeFile(path.join(out, 'index.json'), JSON.stringify({ generatedAt: new Date().toISOString(), sets, ...extra }));
 }
 
 // ---------------------------------------------------------------- Pokémon (TCGdex)
@@ -164,7 +164,18 @@ async function syncPokemon() {
     else stillUnmatched.push(`${s.id} (${s.name})`);
   });
 
-  await writeIndex(out, sets);
+  // For the "My sets" page: each set's release date and series, from TCGdex's
+  // set details (TCGPlayer's publishedOn is unreliable for old promo groups, so
+  // it's only a fallback). meta: { <setId>: [released, series] }
+  const publishedOn = new Map(cat.groups.map((g) => [g.groupId, (g.publishedOn || '').slice(0, 10)]));
+  const meta = {};
+  await mapLimit(tcgdexSets.filter((s) => !pocket.has(s.id)), CONCURRENCY, async (s) => {
+    const d = await getJSON(`${TCGDEX}/sets/${encodeURIComponent(s.id)}`).catch(() => null);
+    const fallback = (sets[s.id] || []).map((g) => publishedOn.get(g)).filter(Boolean).sort()[0] || '';
+    meta[s.id] = [d?.releaseDate || fallback, d?.serie?.name || ''];
+  });
+
+  await writeIndex(out, sets, { meta });
   return { ...cat, matched: Object.keys(sets).length, total: tcgdexSets.length - pocket.size, unmatched: stillUnmatched };
 }
 

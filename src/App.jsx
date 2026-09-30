@@ -1,12 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AppBar, Box, Button, IconButton, CircularProgress, Container, GlobalStyles, Link, Snackbar, Toolbar, Typography,
+  AppBar, Box, Button, IconButton, CircularProgress, Container, Drawer, GlobalStyles, Link, Snackbar, Stack, Toolbar, Typography,
 } from '@mui/material';
 import PrintIcon from '@mui/icons-material/Print';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import CollectionsIcon from '@mui/icons-material/Collections';
 import CollectionsBookmarkIcon from '@mui/icons-material/CollectionsBookmark';
+import GridViewIcon from '@mui/icons-material/GridView';
+import CloseIcon from '@mui/icons-material/Close';
 import SearchPanel from './components/SearchPanel';
+import MySetsPage from './components/sets/MySetsPage';
+import SetPage from './components/sets/SetPage';
 import PrintSheetPanel from './components/PrintSheetPanel';
 import PrintArea from './components/PrintArea';
 import HomePage from './components/HomePage';
@@ -27,7 +31,14 @@ const OWNED_KEY = 'binderwish.owned';
 const DEFAULT_OPTIONS = {
   paper: 'letter', cardStyle: 'art', qrCorner: 'auto', qrSize: 14, qrLogo: null, gap: 0.5, cutLines: true, price: false,
   variants: true, keepPositions: false, newPagePerSet: true,
+  // Sets shown under "Collecting" on My sets: [{ game, setId }]. Kept with the
+  // settings so it saves, backs up and syncs along with them.
+  mySets: [],
 };
+const cleanMySets = (list) => (Array.isArray(list) ? list : [])
+  .filter((m) => m && GAMES[m.game] && typeof m.setId === 'string' && m.setId)
+  .filter((m, i, all) => all.findIndex((x) => x.game === m.game && x.setId === m.setId) === i);
+const withDefaults = (o) => ({ ...DEFAULT_OPTIONS, ...o, mySets: cleanMySets(o?.mySets) });
 // Parallel card-data lookups for cards the bundled catalog couldn't match.
 const CONCURRENCY = 4;
 
@@ -57,6 +68,9 @@ const BASE = import.meta.env.BASE_URL; // e.g. "/binderwish/"
 
 function routeUrl(view, { game, set, q } = {}) {
   if (view === 'privacy') return `${BASE}privacy`;
+  const gameQs = game && game !== DEFAULT_GAME ? `?game=${game}` : '';
+  if (view === 'sets') return `${BASE}sets${gameQs}`;
+  if (view === 'set') return `${BASE}sets/${encodeURIComponent(set)}${gameQs}`;
   if (view !== 'search') return BASE;
   const params = new URLSearchParams();
   if (game && game !== DEFAULT_GAME) params.set('game', game);
@@ -71,10 +85,12 @@ function readRoute() {
   if (location.hash.startsWith('#/binder')) history.replaceState(null, '', routeUrl('search'));
   const path = location.pathname.startsWith(BASE) ? location.pathname.slice(BASE.length) : '';
   const params = new URLSearchParams(location.search);
+  const clean = path.replace(/\/$/, '');
+  const setPath = clean.startsWith('sets/') ? decodeURIComponent(clean.slice(5)) : null;
   return {
-    view: ({ search: 'search', privacy: 'privacy' })[path.replace(/\/$/, '')] || 'home',
+    view: setPath ? 'set' : ({ search: 'search', privacy: 'privacy', sets: 'sets' })[clean] || 'home',
     game: GAMES[params.get('game')] ? params.get('game') : DEFAULT_GAME,
-    set: params.get('set') || null,
+    set: setPath || params.get('set') || null,
     q: params.get('q') || '',
     // Remounts the search panel when arriving from somewhere else (home, back/forward).
     key: `${params.get('game') || ''}|${params.get('set') || ''}|${params.get('q') || ''}|${Date.now()}`,
@@ -88,7 +104,19 @@ function loadSaved() {
     if (Array.isArray(saved.queue)) {
       queue = saved.queue.map(migrateItem).map((c) => (c.needsLookup && !c.tcgplayerId ? { ...c, status: 'pending' } : c));
     }
-    options = { ...DEFAULT_OPTIONS, ...saved.options };
+    options = withDefaults(saved.options);
+    // Before My sets existed: start the list from the print sheet's sets (and,
+    // for Pokémon, owned cards — their ids start with the set id).
+    if (!Array.isArray(saved.options?.mySets)) {
+      const fromQueue = queue.map((c) => ({ game: c.game || 'pokemon', setId: c.setId }));
+      let fromOwned = [];
+      try {
+        fromOwned = JSON.parse(localStorage.getItem(OWNED_KEY) || '[]')
+          .map((k) => k.split('|')[0]).filter((id) => /^[a-z0-9.]+-[^-]+$/i.test(id) && !id.startsWith('op-'))
+          .map((id) => ({ game: 'pokemon', setId: id.slice(0, id.lastIndexOf('-')) }));
+      } catch {}
+      options.mySets = cleanMySets([...fromQueue, ...fromOwned]);
+    }
     // Removed / renamed options (qrPos became qrCorner, which adds 'auto').
     delete options.qrOpacity; delete options.style; delete options.qrPos;
   } catch {}
@@ -126,6 +154,8 @@ export default function App() {
     return setsLoading.current.get(gameId);
   }, []);
   const [printing, setPrinting] = useState(false);
+  // On set pages the print sheet lives in a drawer, opened by "Add missing to print".
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [toast, setToast] = useState(null);
   const [waitlist, setWaitlist] = useState(null); // null | 'collector' | 'vendor'
   // Routes: <base> = home, <base>search?set=<id>|q=<name> = the tool.
@@ -136,11 +166,14 @@ export default function App() {
     return () => window.removeEventListener('popstate', onPop);
   }, []);
   const navigate = (view, params = {}) => {
+    setSheetOpen(false);
     history.pushState(null, '', routeUrl(view, params));
     setRoute(readRoute());
     window.scrollTo(0, 0);
   };
   const view = route.view;
+  // Views with the print sheet (and the header's Print button).
+  const toolView = view === 'search' || view === 'set';
 
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ queue, options })); } catch {}
@@ -185,35 +218,54 @@ export default function App() {
 
   const toItem = (slot) => ({ ...slot, qty: 1, status: slot.needsLookup ? 'pending' : 'ready' });
 
-  const addSlot = useCallback((slot) => {
+  // Checking off or printing a card adds its set to My sets.
+  const trackSets = useCallback((slots) => setOptions((o) => {
+    const next = cleanMySets([...o.mySets, ...slots.filter((s) => s?.setId).map((s) => ({ game: s.game || 'pokemon', setId: s.setId }))]);
+    return next.length === o.mySets.length ? o : { ...o, mySets: next };
+  }), []);
+  const toggleTracked = useCallback((gameId, setId) => setOptions((o) => {
+    const has = o.mySets.some((m) => m.game === gameId && m.setId === setId);
+    return { ...o, mySets: has ? o.mySets.filter((m) => !(m.game === gameId && m.setId === setId)) : [...o.mySets, { game: gameId, setId }] };
+  }), []);
+
+  // Tapping a card toggles it on / off the print sheet (quantities are set with
+  // − / + on the sheet itself).
+  const togglePrint = useCallback((slot) => {
+    const label = `${slot.name}${slot.variantLabel ? ` (${slot.variantLabel})` : ''}`;
+    if (queuedKeys.has(slot.key)) {
+      setQueue((q) => q.filter((c) => c.key !== slot.key));
+      setToast(`Removed ${label} from the print sheet`);
+      return;
+    }
     if (owned.has(slot.key)) {
       setToast('You own this one — unmark it (✓) to print a placeholder');
       return;
     }
-    setQueue((q) => sortQueue(q.some((c) => c.key === slot.key)
-      ? q.map((c) => (c.key === slot.key ? { ...c, qty: c.qty + 1 } : c))
-      : [...q, toItem(slot)]));
-    setToast(`Added ${slot.name}${slot.variantLabel ? ` (${slot.variantLabel})` : ''}`);
-  }, [owned]);
+    setQueue((q) => sortQueue([...q.filter((c) => c.key !== slot.key), toItem(slot)]));
+    trackSets([slot]);
+    setToast(`Added ${label}`);
+  }, [owned, queuedKeys, trackSets]);
 
   const addMany = useCallback((slots) => {
     setQueue((q) => {
       const have = new Set(q.map((c) => c.key));
       return sortQueue([...q, ...slots.filter((s) => !have.has(s.key)).map(toItem)]);
     });
+    trackSets(slots);
     setToast(`Added ${slots.length} placeholder${slots.length === 1 ? '' : 's'}`);
-  }, []);
+  }, [trackSets]);
 
   // Marking a card owned also takes it off the print sheet — no placeholder needed.
-  const toggleOwned = useCallback((key) => {
+  const toggleOwned = useCallback((key, slot) => {
     const adding = !owned.has(key);
+    if (adding && slot) trackSets([slot]);
     setOwned((prev) => {
       const next = new Set(prev);
       if (adding) next.add(key); else next.delete(key);
       return next;
     });
     if (adding) setQueue((q) => q.filter((c) => c.key !== key));
-  }, [owned]);
+  }, [owned, trackSets]);
 
   const changeQty = useCallback((key, delta) => {
     setQueue((q) => q.map((c) => (c.key === key ? { ...c, qty: c.qty + delta } : c)).filter((c) => c.qty > 0));
@@ -228,11 +280,12 @@ export default function App() {
       const nextOwned = new Set(data.owned);
       setOwned(nextOwned);
       setQueue(sortQueue(data.queue.filter((c) => !nextOwned.has(c.key))));
-      setOptions({ ...DEFAULT_OPTIONS, ...data.options });
+      setOptions(withDefaults(data.options));
       setToast(`Replaced with backup: ${data.owned.length} owned, ${data.queue.length} on print sheet`);
     } else {
       const merged = mergeBackup({ owned: [...owned], queue }, data);
       setOwned(merged.owned);
+      setOptions((o) => ({ ...o, mySets: cleanMySets([...o.mySets, ...(data.options?.mySets || [])]) }));
       setQueue(sortQueue(merged.queue));
       setToast(`Merged backup: ${merged.owned.size} owned, ${merged.queue.length} on print sheet`);
     }
@@ -252,6 +305,34 @@ export default function App() {
 
   const readyCount = queue.length - stats.pending;
 
+  // Clearing syncs to every device, so it can be undone for a few seconds.
+  const clearQueue = () => {
+    const previous = queue;
+    setQueue([]);
+    setToast({ message: `Cleared ${previous.length} placeholder${previous.length === 1 ? '' : 's'}`, undo: () => setQueue(previous) });
+  };
+
+  const printSheet = (embedded) => (
+    <PrintSheetPanel
+      embedded={embedded}
+      queue={queue}
+      options={options}
+      setOption={setOption}
+      onQty={changeQty}
+      onClear={clearQueue}
+      stats={stats}
+      dataSection={
+        <BackupSection
+          ownedCount={owned.size}
+          queueCount={queue.length}
+          defaultOptions={DEFAULT_OPTIONS}
+          onExport={exportBackup}
+          onImport={importBackup}
+        />
+      }
+    />
+  );
+
   // Optional account: syncs owned / print sheet / settings across devices.
   const sync = useCloudSync({
     owned, queue, options,
@@ -261,7 +342,7 @@ export default function App() {
       setQueue(sortQueue(next.queue
         .filter((c) => c && c.key && !nextOwned.has(c.key))
         .map((c) => (c.needsLookup && !c.tcgplayerId ? { ...c, status: 'pending' } : c))));
-      setOptions({ ...DEFAULT_OPTIONS, ...next.options });
+      setOptions(withDefaults(next.options));
     },
     onLoaded: ({ fresh }) => { if (fresh) setToast('Signed in — your collection now syncs to your account'); },
     // Signing out leaves nothing behind on this (possibly shared) device; the
@@ -291,14 +372,23 @@ export default function App() {
               <Box sx={{ minWidth: 0 }}>
                 {/* On phones the binder view's header needs the room for its buttons, so just the logo shows. */}
                 <Typography component="div" noWrap sx={{ fontFamily: DISPLAY_FONT, fontWeight: 800, fontSize: { xs: 16, sm: 18 }, lineHeight: 1.2, letterSpacing: '-.01em',
-                  display: { xs: view === 'search' ? 'none' : 'block', sm: 'block' } }}>BinderWish</Typography>
+                  display: { xs: toolView ? 'none' : 'block', sm: 'block' } }}>BinderWish</Typography>
                 <Typography variant="body2" color="text.secondary" noWrap sx={{ display: { xs: 'none', sm: 'block' } }}>
                   Placeholder cards for your master set binder — scan to find the real one
                 </Typography>
               </Box>
             </Box>
             {ACCOUNTS_ENABLED && <AccountMenu sync={sync} onPrivacy={() => navigate('privacy')} />}
-            {view !== 'search' ? (
+            <Button color="inherit" startIcon={<GridViewIcon />} onClick={() => navigate('sets', { game: route.game })}
+              aria-current={view === 'sets' || view === 'set' ? 'page' : undefined}
+              sx={{ flexShrink: 0, display: { xs: 'none', md: 'inline-flex' }, color: view === 'sets' || view === 'set' ? 'primary.main' : 'inherit' }}>
+              My sets
+            </Button>
+            <IconButton aria-label="My sets" onClick={() => navigate('sets', { game: route.game })}
+              sx={{ display: { xs: 'inline-flex', md: 'none' }, color: view === 'sets' || view === 'set' ? 'primary.main' : 'inherit' }}>
+              <GridViewIcon />
+            </IconButton>
+            {!toolView ? (
               <Button variant="contained" size="large" startIcon={<CollectionsIcon />} onClick={() => navigate('search')}>
                 <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Open my binder</Box>
                 <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>Binder</Box>
@@ -308,15 +398,16 @@ export default function App() {
               variant="contained"
               size="large"
               startIcon={stats.pending ? <CircularProgress size={18} color="inherit" /> : <PrintIcon />}
-              disabled={stats.count === 0 || stats.pending > 0 || printing}
-              onClick={() => setPrinting(true)}
+              disabled={stats.count === 0 || (view !== 'set' && (stats.pending > 0 || printing))}
+              // On set pages (no sidebar) this opens the print sheet to review first.
+              onClick={() => (view === 'set' ? setSheetOpen(true) : setPrinting(true))}
             >
               {stats.pending
                 ? `Looking up ${readyCount}/${queue.length}`
                 : printing ? 'Preparing…' : `Print ${stats.count}`}
             </Button>
             )}
-            {view === 'search' && WAITLIST_ENABLED && (
+            {toolView && WAITLIST_ENABLED && (
               <>
                 <Button
                   variant="outlined" size="large" startIcon={<LocalShippingIcon />}
@@ -344,14 +435,45 @@ export default function App() {
             onVendorWaitlist={WAITLIST_ENABLED ? () => setWaitlist('vendor') : null}
           />
         )}
-        {view === 'search' && (
+        {view === 'sets' && (
+          <MySetsPage
+            game={game}
+            onGameChange={(g) => navigate('sets', { game: g })}
+            setsInfo={setsInfo}
+            mySets={options.mySets}
+            owned={owned}
+            variants={options.variants}
+            setHref={(id) => routeUrl('set', { game: route.game, set: id })}
+            onOpenSet={(id) => navigate('set', { game: route.game, set: id })}
+          />
+        )}
+        {toolView && (
         <Container maxWidth="xl" sx={{ py: 3 }}>
           <Box sx={{
             display: 'grid',
-            gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1fr) 360px' },
+            gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: view === 'set' ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) 360px' },
             gap: 3,
             alignItems: 'start',
           }}>
+            {view === 'set' ? (
+              <SetPage
+                key={`${route.game}|${route.set}`}
+                game={game}
+                setId={route.set}
+                setsInfo={setsInfo}
+                variants={options.variants}
+                owned={owned}
+                queuedKeys={queuedKeys}
+                tracked={options.mySets.some((m) => m.game === route.game && m.setId === route.set)}
+                onToggleTracked={() => toggleTracked(route.game, route.set)}
+                onToggleOwned={toggleOwned}
+                onAdd={togglePrint}
+                onAddMany={(slots) => { addMany(slots); setSheetOpen(true); }}
+                onOpenSheet={() => setSheetOpen(true)}
+                backHref={routeUrl('sets', { game: route.game })}
+                onBack={() => navigate('sets', { game: route.game })}
+              />
+            ) : (
             <SearchPanel
               game={game}
               onGameChange={(g) => navigate('search', { game: g })}
@@ -364,27 +486,25 @@ export default function App() {
               queuedKeys={queuedKeys}
               owned={owned}
               onToggleOwned={toggleOwned}
-              onAdd={addSlot}
+              onAdd={togglePrint}
               onAddMany={addMany}
             />
-            <PrintSheetPanel
-              queue={queue}
-              options={options}
-              setOption={setOption}
-              onQty={changeQty}
-              onClear={() => setQueue([])}
-              stats={stats}
-              dataSection={
-                <BackupSection
-                  ownedCount={owned.size}
-                  queueCount={queue.length}
-                  defaultOptions={DEFAULT_OPTIONS}
-                  onExport={exportBackup}
-                  onImport={importBackup}
-                />
-              }
-            />
+            )}
+            {view !== 'set' && printSheet(false)}
           </Box>
+          {view === 'set' && (
+            <Drawer className="no-print" anchor="right" open={sheetOpen} onClose={() => setSheetOpen(false)}
+              slotProps={{ paper: { sx: { width: { xs: '100%', sm: 420 }, bgcolor: 'background.default', backgroundImage: 'none' } } }}>
+              <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', px: 2.5, pt: 2 }}>
+                <Button variant="contained" startIcon={<PrintIcon />} disabled={stats.count === 0 || stats.pending > 0 || printing}
+                  onClick={() => setPrinting(true)}>
+                  {stats.pending ? `Looking up ${readyCount}/${queue.length}` : `Print ${stats.count}`}
+                </Button>
+                <IconButton aria-label="Close print sheet" onClick={() => setSheetOpen(false)}><CloseIcon /></IconButton>
+              </Stack>
+              {printSheet(true)}
+            </Drawer>
+          )}
 
           <Typography variant="caption" color="text.secondary" component="footer" sx={{ display: 'block', textAlign: 'center', mt: 4 }}>
             <SiteFootnote onPrivacy={() => navigate('privacy')} />
@@ -394,9 +514,12 @@ export default function App() {
 
         <Snackbar
           open={!!toast}
-          message={toast}
-          autoHideDuration={2000}
-          onClose={() => setToast(null)}
+          message={toast?.message ?? toast}
+          autoHideDuration={toast?.undo ? 8000 : 2000}
+          action={toast?.undo && (
+            <Button color="primary" size="small" onClick={() => { toast.undo(); setToast(null); }}>Undo</Button>
+          )}
+          onClose={(_, reason) => { if (reason !== 'clickaway') setToast(null); }}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
         />
       </Box>

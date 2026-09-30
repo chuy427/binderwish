@@ -41,7 +41,10 @@ const lorcana = {
     const sets = results.slice().sort((a, b) => (isMain(b) - isMain(a))
       || (b.released_at || '').localeCompare(a.released_at || ''));
     return {
-      sets: sets.map((s) => ({ id: s.code, name: s.name })),
+      sets: sets.map((s) => ({
+        id: s.code, name: s.name, released: s.released_at || '',
+        series: isMain(s) ? 'Main sets' : 'Promos & special', code: isMain(s) ? `Chapter ${s.code}` : s.code,
+      })),
       names: new Map(sets.map((s) => [s.code, s.name])),
       official: officialBySet,
     };

@@ -54,7 +54,8 @@ export function useCloudSync({ owned, queue, options, apply, onSignedOut, onLoad
       next = local; needsSave = true;                       // new account: start from this browser
     } else if (fresh) {
       const merged = mergeBackup({ owned: [...local.owned], queue: local.queue }, { owned: data.owned || [], queue: data.queue || [] });
-      next = { owned: merged.owned, queue: merged.queue, options: { ...local.options, ...data.options } };
+      const mySets = [...(local.options.mySets || []), ...(data.options?.mySets || [])];
+      next = { owned: merged.owned, queue: merged.queue, options: { ...local.options, ...data.options, mySets } };
       needsSave = true;
     } else {
       next = { owned: new Set(data.owned || []), queue: data.queue || [], options: { ...local.options, ...data.options } };

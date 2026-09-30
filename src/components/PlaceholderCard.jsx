@@ -69,6 +69,14 @@ export default function PlaceholderCard({ slot, options, highRes = false, style 
         width: `${options.qrLogo?.src ? Math.max(options.qrSize, MIN_QR_WITH_LOGO) : options.qrSize}mm`,
         background: '#fff', padding: '0.8mm', borderRadius: '1.2mm', lineHeight: 0, textAlign: 'center',
       }}>
+        {/* The printing, right where you scan: on full art, holo / reverse holo /
+            Poké Ball / Master Ball versions otherwise look the same. */}
+        {slot.variantLabel && (
+          <span style={{
+            display: 'block', font: '800 4.6pt/1.1 Roboto, system-ui, sans-serif', letterSpacing: '.02em',
+            textTransform: 'uppercase', color: '#000', margin: '0.1mm 0 0.6mm', overflowWrap: 'anywhere',
+          }}>{slot.variantLabel.replace(/ Pattern\b/g, '')}</span>
+        )}
         <QRCodeSVG value={tcgplayerUrl(slot)} {...qrLogoProps(options)} marginSize={0} style={{ width: '100%', height: 'auto', display: 'block' }} />
         {options.price && slot.price != null && (
           <span style={{ display: 'block', font: '700 5.5pt/1.2 Roboto, system-ui, sans-serif', color: '#000', marginTop: '0.4mm' }}>

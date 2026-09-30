@@ -38,13 +38,14 @@ function Toggle({ checked, onChange, label, help }) {
   );
 }
 
-export default function PrintSheetPanel({ queue, options, setOption, onQty, onClear, stats, dataSection }) {
+// `embedded`: shown inside a drawer (no border, no sticky scrolling of its own).
+export default function PrintSheetPanel({ queue, options, setOption, onQty, onClear, stats, dataSection, embedded = false }) {
   const preview = queue[queue.length - 1] || SAMPLE;
 
   return (
     <Paper
       variant="outlined"
-      sx={{
+      sx={embedded ? { p: { xs: 2, sm: 2.5 }, border: 0, borderRadius: 0, bgcolor: 'transparent' } : {
         p: { xs: 2, sm: 2.5 },
         position: { md: 'sticky' },
         top: { md: 88 },

@@ -104,7 +104,7 @@ const onepiece = {
     // (TCGPlayer lists new sets before their images; the sync checks a sample).
     onepiece.quickPicks = list.filter((s) => s.kind === 'Booster' && s.imagesReady !== false).slice(0, 3).map((s) => s.name);
     return {
-      sets: list.map((s) => ({ id: s.id, name: s.name, code: s.code, group: s.kind, artPending: s.imagesReady === false })),
+      sets: list.map((s) => ({ id: s.id, name: s.name, code: s.code, group: s.kind, series: s.kind, released: (s.released || '').slice(0, 10), artPending: s.imagesReady === false })),
       names: new Map(list.map((s) => [s.id, s.name])),
     };
   },

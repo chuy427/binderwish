@@ -1,6 +1,6 @@
 // Pokémon TCG adapter — card data and images from TCGdex (https://tcgdex.dev).
 import { getJSON, TTL } from '../lib/cache';
-import { matchByNumberAndName } from '../catalog';
+import { catalogIndex, matchByNumberAndName } from '../catalog';
 
 const API = 'https://api.tcgdex.net/v2/en';
 const PAGE_SIZE = 30;
@@ -53,13 +53,20 @@ const pokemon = {
   quickPicks: ['Prismatic Evolutions', '151', '30th Celebration', 'Surging Sparks'],
 
   async loadSets() {
-    const [sets, pocket] = await Promise.all([
+    const [sets, pocket, index] = await Promise.all([
       getJSON(`${API}/sets`, TTL.sets),
       getJSON(`${API}/series/tcgp`, TTL.sets).catch(() => ({ sets: [] })),
+      catalogIndex('pokemon'),
     ]);
+    // Release date + series come from the catalog build (see sync-tcgplayer.mjs).
+    const meta = index.meta || {};
     const pocketIds = new Set((pocket.sets || []).map((s) => s.id));
     return {
-      sets: sets.slice().reverse().filter((s) => !pocketIds.has(s.id)).map((s) => ({ id: s.id, name: s.name })),
+      sets: sets.slice().reverse().filter((s) => !pocketIds.has(s.id)).map((s) => ({
+        id: s.id, name: s.name,
+        logo: s.logo ? `${s.logo}.webp` : null,
+        released: meta[s.id]?.[0] || '', series: meta[s.id]?.[1] || '', total: s.cardCount?.total || 0,
+      })),
       names: new Map(sets.map((s) => [s.id, s.name])),
       // Printed set size ("006/165" — the 165), used on placeholders.
       official: new Map(sets.map((s) => [s.id, s.cardCount?.official || 0])),
