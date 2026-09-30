@@ -13,7 +13,6 @@ import './print.css';
 import theme from './theme';
 import App from './App';
 import { reloadIfOutdated } from './lib/freshness';
-import './lib/install'; // catch the browser's install prompt as early as possible
 
 reloadIfOutdated();
 

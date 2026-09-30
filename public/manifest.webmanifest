@@ -4,16 +4,35 @@
   "description": "Track your master sets, print binder placeholders, and check your want list at card shows — even offline.",
   "start_url": "./need",
   "scope": "./",
-  "display": "standalone",
+  "display": "browser",
   "background_color": "#111111",
   "theme_color": "#111111",
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
-    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ],
   "shortcuts": [
-    { "name": "Want list", "url": "./need" },
-    { "name": "My sets", "url": "./sets" }
+    {
+      "name": "Want list",
+      "url": "./need"
+    },
+    {
+      "name": "My sets",
+      "url": "./sets"
+    }
   ]
 }

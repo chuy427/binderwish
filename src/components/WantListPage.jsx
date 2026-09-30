@@ -9,11 +9,8 @@ import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import CloudOffIcon from '@mui/icons-material/CloudOff';
 import CloudDoneIcon from '@mui/icons-material/CloudDone';
-import InstallMobileIcon from '@mui/icons-material/InstallMobile';
-import IosShareIcon from '@mui/icons-material/IosShare';
 import CollectionsBookmarkOutlinedIcon from '@mui/icons-material/CollectionsBookmarkOutlined';
 import { useWantList } from '../lib/useWantList';
-import { useInstall } from '../lib/install';
 import { tcgplayerUrl } from '../catalog';
 import { DISPLAY_FONT } from '../theme';
 
@@ -40,7 +37,6 @@ export default function WantListPage({ sources, getSetsInfo, variants, owned, on
     return () => { window.removeEventListener('online', up); window.removeEventListener('offline', down); };
   }, []);
   const offline = loadFailed || !online;
-  const inst = useInstall();
   const [q, setQ] = useState('');
   const [minPrice, setMinPrice] = useState(0);
   const [sort, setSort] = useState('binder'); // binder | price
@@ -104,7 +100,7 @@ export default function WantListPage({ sources, getSetsInfo, variants, owned, on
         your custom sets. Tap <CheckCircleOutlineIcon sx={{ fontSize: 17, verticalAlign: '-3px' }} /> the moment you buy one.
       </Typography>
 
-      {/* Offline status + install */}
+      {/* Offline status */}
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} useFlexGap sx={{ mt: 2, alignItems: { sm: 'center' }, flexWrap: 'wrap' }}>
         {sources.length > 0 && (
           <Chip size="small" variant="outlined"
@@ -113,14 +109,6 @@ export default function WantListPage({ sources, getSetsInfo, variants, owned, on
             label={offline
               ? (at ? `Offline — showing your list from ${since(at)}` : 'Offline')
               : loading ? 'Updating prices…' : `Saved for offline · updated ${since(at)}`} />
-        )}
-        {!inst.installed && inst.canPrompt && (
-          <Button size="small" variant="outlined" startIcon={<InstallMobileIcon />} onClick={inst.install}>Install app</Button>
-        )}
-        {!inst.installed && !inst.canPrompt && inst.ios && (
-          <Typography variant="body2" color="text.secondary">
-            Add it to your Home Screen: tap <IosShareIcon sx={{ fontSize: 17, verticalAlign: '-3px' }} /> Share → Add to Home Screen.
-          </Typography>
         )}
       </Stack>
 
