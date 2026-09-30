@@ -2,7 +2,7 @@ import { Box, Container, Link, Typography } from '@mui/material';
 
 // Where people send access/removal requests. Set before publishing the waitlist.
 export const CONTACT_EMAIL = 'chuy427jg@gmail.com';
-const EFFECTIVE_DATE = 'September 28, 2026';
+const EFFECTIVE_DATE = 'September 30, 2026';
 
 function Contact() {
   return CONTACT_EMAIL
@@ -24,16 +24,31 @@ export default function PrivacyPage() {
       <Typography color="text.secondary" sx={{ mt: 1 }}>Effective {EFFECTIVE_DATE}</Typography>
 
       <P>
-        BinderWish is a free tool for printing binder placeholders for trading cards. We’ve kept it simple: no
-        accounts, no ads, no analytics and no tracking cookies. This page explains the little data that is involved.
+        BinderWish is a free tool for printing binder placeholders for trading cards. We’ve kept it simple: accounts
+        are optional, and there are no ads, no analytics and no tracking cookies. This page explains the little data that is involved.
       </P>
 
       <H>Data that stays in your browser</H>
       <P>
-        Your owned-card checklist, print sheet and print settings are saved in your browser’s local storage, along
-        with cached card data to make the site faster. This data never leaves your device — we don’t receive it and
-        can’t see it. Clearing your browser’s site data deletes it. Backup files you export are created on your device
-        and stay wherever you save them.
+        If you don’t sign in, your owned-card checklist, print sheet and print settings are saved only in your
+        browser’s local storage, along with cached card data to make the site faster. This data never leaves your
+        device — we don’t receive it and can’t see it. Clearing your browser’s site data deletes it. Backup files you
+        export are created on your device and stay wherever you save them.
+      </P>
+
+      <H>Optional accounts</H>
+      <P>
+        If you sign in, we store your email address and your collection — the owned-card checklist, print sheet and
+        print settings (including any QR logo you’ve added) — so it can sync between your devices. Sign-in works by
+        an emailed link; there’s no password. We use your email only to sign you in and to send messages about your
+        account, never for marketing unless you separately join the waitlist.
+      </P>
+      <P>
+        Accounts are hosted by <Link href="https://supabase.com/privacy" target="_blank" rel="noopener">Supabase</Link>,
+        which stores the data for us, and your browser keeps a sign-in token in local storage so you stay signed in.
+        Your collection is protected so that only your account can read or change it. Signing out removes your
+        collection from that browser (it stays in your account). You can delete your account at any time from the
+        account menu, which permanently deletes your email and collection.
       </P>
 
       <H>The printing waitlist</H>
@@ -57,6 +72,7 @@ export default function PrivacyPage() {
         <li><b>GitHub Pages</b> hosts the site (<Link href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement" target="_blank" rel="noopener">GitHub’s privacy statement</Link>).</li>
         <li><b>TCGdex</b> (Pokémon) and <b>Lorcast</b> (Lorcana) provide card lists, search and images. Your searches are sent to them to get results.</li>
         <li><b>TCGPlayer</b>: its image servers supply One Piece card images, and you visit TCGPlayer itself when you open a card link or scan a placeholder’s QR code (<Link href="https://www.tcgplayer.com/privacy-policy" target="_blank" rel="noopener">TCGPlayer’s privacy policy</Link>).</li>
+        <li><b>Supabase</b>, only if you sign in, to store and sync your account.</li>
         <li><b>Formspree</b>, only if you submit the waitlist form.</li>
       </Box>
       <P>
@@ -67,13 +83,14 @@ export default function PrivacyPage() {
       <H>Children</H>
       <P>
         BinderWish isn’t directed at children under 13, and we don’t knowingly collect their personal information. If
-        you’re under 13, please don’t join the waitlist — ask a parent or guardian instead. If you believe a child has
-        signed up, email <Contact /> and we’ll delete it.
+        you’re under 13, please don’t create an account or join the waitlist — ask a parent or guardian instead. If
+        you believe a child has signed up, email <Contact /> and we’ll delete it.
       </P>
 
       <H>Your choices</H>
       <P>
-        You can ask us what waitlist information we have about you, or ask us to delete it, at any time by emailing <Contact />.
+        You can delete your account yourself from the account menu. You can also ask us what account or waitlist
+        information we have about you, or ask us to delete it, at any time by emailing <Contact />.
       </P>
 
       <H>Changes</H>

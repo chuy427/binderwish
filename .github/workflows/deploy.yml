@@ -34,6 +34,8 @@ jobs:
           # Form endpoint for the "Get them printed" waitlist (Settings → Secrets and
           # variables → Actions → Variables). Unset = the button stays hidden.
           VITE_WAITLIST_ENDPOINT: ${{ vars.WAITLIST_ENDPOINT }}
+          # Set the ACCOUNTS repo variable to "on" to show sign-in (needs custom SMTP in Supabase).
+          VITE_ACCOUNTS: ${{ vars.ACCOUNTS }}
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:

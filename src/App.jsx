@@ -14,6 +14,9 @@ import BackupSection from './components/BackupSection';
 import PrivacyPage from './components/PrivacyPage';
 import SiteFootnote from './components/SiteFootnote';
 import WaitlistDialog, { WAITLIST_ENABLED } from './components/WaitlistDialog';
+import AccountMenu from './components/AccountMenu';
+import { useCloudSync } from './lib/useCloudSync';
+import { ACCOUNTS_ENABLED } from './lib/cloud';
 import { downloadBackup, mergeBackup } from './lib/backup';
 import { DEFAULT_GAME, GAMES, getGame } from './games';
 import { DISPLAY_FONT } from './theme';
@@ -249,6 +252,27 @@ export default function App() {
 
   const readyCount = queue.length - stats.pending;
 
+  // Optional account: syncs owned / print sheet / settings across devices.
+  const sync = useCloudSync({
+    owned, queue, options,
+    apply: (next) => {
+      const nextOwned = new Set(next.owned);
+      setOwned(nextOwned);
+      setQueue(sortQueue(next.queue
+        .filter((c) => c && c.key && !nextOwned.has(c.key))
+        .map((c) => (c.needsLookup && !c.tcgplayerId ? { ...c, status: 'pending' } : c))));
+      setOptions({ ...DEFAULT_OPTIONS, ...next.options });
+    },
+    onLoaded: ({ fresh }) => { if (fresh) setToast('Signed in — your collection now syncs to your account'); },
+    // Signing out leaves nothing behind on this (possibly shared) device; the
+    // collection stays in the account.
+    onSignedOut: () => {
+      setOwned(new Set());
+      setQueue([]);
+      setToast('Signed out — your collection is saved in your account');
+    },
+  });
+
   return (
     <>
       <GlobalStyles styles={`@page { size: ${options.paper === 'a4' ? 'A4' : 'letter'} portrait; margin: 0; }`} />
@@ -256,7 +280,7 @@ export default function App() {
       <Box className="no-print" sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
         <AppBar position="sticky" color="inherit" elevation={0}
           sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: 'rgba(17,17,17,.72)', backdropFilter: 'blur(14px)' }}>
-          <Toolbar sx={{ gap: 2 }}>
+          <Toolbar sx={{ gap: { xs: 1, sm: 2 } }}>
             <Box component="a" href={BASE} onClick={(e) => { e.preventDefault(); navigate('home'); }} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: 'inherit', textDecoration: 'none', flex: 1, minWidth: 0 }}>
               <Box sx={{
                 width: 40, height: 40, borderRadius: '12px', display: 'grid', placeItems: 'center',
@@ -265,12 +289,15 @@ export default function App() {
                 <CollectionsBookmarkIcon />
               </Box>
               <Box sx={{ minWidth: 0 }}>
-                <Typography component="div" sx={{ fontFamily: DISPLAY_FONT, fontWeight: 800, fontSize: 18, lineHeight: 1.2, letterSpacing: '-.01em' }}>BinderWish</Typography>
+                {/* On phones the binder view's header needs the room for its buttons, so just the logo shows. */}
+                <Typography component="div" noWrap sx={{ fontFamily: DISPLAY_FONT, fontWeight: 800, fontSize: { xs: 16, sm: 18 }, lineHeight: 1.2, letterSpacing: '-.01em',
+                  display: { xs: view === 'search' ? 'none' : 'block', sm: 'block' } }}>BinderWish</Typography>
                 <Typography variant="body2" color="text.secondary" noWrap sx={{ display: { xs: 'none', sm: 'block' } }}>
                   Placeholder cards for your master set binder — scan to find the real one
                 </Typography>
               </Box>
             </Box>
+            {ACCOUNTS_ENABLED && <AccountMenu sync={sync} onPrivacy={() => navigate('privacy')} />}
             {view !== 'search' ? (
               <Button variant="contained" size="large" startIcon={<CollectionsIcon />} onClick={() => navigate('search')}>
                 <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Open my binder</Box>
