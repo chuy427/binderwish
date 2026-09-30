@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import {
-  Box, Container, InputAdornment, MenuItem, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography,
+  Box, Button, Container, InputAdornment, MenuItem, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
+import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import SetTile, { ProgressLine } from './SetTile';
 import { CustomSetArt } from './CustomSetPage';
 import CustomSetDialog from './CustomSetDialog';
@@ -20,6 +21,7 @@ const newestFirst = (a, b) => (b.released || '').localeCompare(a.released || '')
 // with the sets you're collecting — and your progress in each — up top.
 export default function MySetsPage({
   game, onGameChange, setsInfo, mySets, customSets, owned, variants, setHref, onOpenSet, customHref, onOpenCustom, onCreateCustom,
+  wantHref, onOpenWant,
 }) {
   const [series, setSeries] = useState('all');
   const [q, setQ] = useState('');
@@ -59,6 +61,10 @@ export default function MySetsPage({
       <Typography color="text.secondary" sx={{ mt: 1, maxWidth: 620 }}>
         Open a set to see every card and variant, check off what you own, and add what’s missing to your print sheet.
       </Typography>
+      <Button component="a" href={wantHref} onClick={(e) => { e.preventDefault(); onOpenWant(); }} variant="outlined"
+        startIcon={<FactCheckOutlinedIcon />} sx={{ mt: 2 }}>
+        Want list — for card shows
+      </Button>
 
       <ToggleButtonGroup exclusive size="small" value={game.id} onChange={(_, v) => v && v !== game.id && onGameChange(v)} aria-label="Game"
         sx={{ mt: 3, bgcolor: 'rgba(255,255,255,.06)', borderRadius: 99, p: 0.5,

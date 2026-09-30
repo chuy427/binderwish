@@ -13,8 +13,17 @@ import './print.css';
 import theme from './theme';
 import App from './App';
 import { reloadIfOutdated } from './lib/freshness';
+import './lib/install'; // catch the browser's install prompt as early as possible
 
 reloadIfOutdated();
+
+// Offline support (see scripts/sw-template.js) — production builds only, so the
+// dev server is never served stale files.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`, { scope: import.meta.env.BASE_URL }).catch(() => {});
+  });
+}
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

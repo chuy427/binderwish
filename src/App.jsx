@@ -7,11 +7,13 @@ import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import CollectionsIcon from '@mui/icons-material/Collections';
 import CollectionsBookmarkIcon from '@mui/icons-material/CollectionsBookmark';
 import GridViewIcon from '@mui/icons-material/GridView';
+import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import CloseIcon from '@mui/icons-material/Close';
 import SearchPanel from './components/SearchPanel';
 import MySetsPage from './components/sets/MySetsPage';
 import SetPage from './components/sets/SetPage';
 import CustomSetPage from './components/sets/CustomSetPage';
+import WantListPage from './components/WantListPage';
 import { cleanCustomSets, newCustomSetId } from './lib/customSets';
 import PrintSheetPanel from './components/PrintSheetPanel';
 import PrintArea from './components/PrintArea';
@@ -83,6 +85,7 @@ function routeUrl(view, { game, set, q } = {}) {
   if (view === 'privacy') return `${BASE}privacy`;
   const gameQs = game && game !== DEFAULT_GAME ? `?game=${game}` : '';
   if (view === 'sets') return `${BASE}sets${gameQs}`;
+  if (view === 'need') return `${BASE}need`;
   if (view === 'set') return `${BASE}sets/${encodeURIComponent(set)}${gameQs}`;
   if (view === 'custom') return `${BASE}sets/custom/${encodeURIComponent(set)}${gameQs}`;
   if (view !== 'search') return BASE;
@@ -103,7 +106,7 @@ function readRoute() {
   const customPath = clean.startsWith('sets/custom/') ? decodeURIComponent(clean.slice(12)) : null;
   const setPath = !customPath && clean.startsWith('sets/') ? decodeURIComponent(clean.slice(5)) : null;
   return {
-    view: customPath ? 'custom' : setPath ? 'set' : ({ search: 'search', privacy: 'privacy', sets: 'sets' })[clean] || 'home',
+    view: customPath ? 'custom' : setPath ? 'set' : ({ search: 'search', privacy: 'privacy', sets: 'sets', need: 'need' })[clean] || 'home',
     game: GAMES[params.get('game')] ? params.get('game') : DEFAULT_GAME,
     set: customPath || setPath || params.get('set') || null,
     q: params.get('q') || '',
@@ -308,6 +311,24 @@ export default function App() {
     if (adding) setQueue((q) => q.filter((c) => c.key !== key));
   }, [owned, trackSets]);
 
+  // Want list "Got it": mark owned, with undo (which also puts it back on the print sheet).
+  const gotIt = (slot) => {
+    const item = queue.find((c) => c.key === slot.key);
+    toggleOwned(slot.key);
+    setToast({
+      message: `Got ${slot.name}${slot.variantLabel ? ` (${slot.variantLabel})` : ''}`,
+      undo: () => {
+        setOwned((prev) => { const n = new Set(prev); n.delete(slot.key); return n; });
+        if (item) setQueue((q) => (q.some((c) => c.key === item.key) ? q : sortQueue([...q, item])));
+      },
+    });
+  };
+  // Everything the want list covers: sets being collected, then custom sets.
+  const wantSources = useMemo(() => [
+    ...options.mySets.map((m) => ({ id: `set|${m.game}|${m.setId}`, kind: 'set', game: m.game, setId: m.setId, binder: m.binder, location: m.location })),
+    ...options.customSets.map((c) => ({ id: `custom|${c.id}`, kind: 'custom', game: c.game, cs: c, binder: c.binder, location: c.location })),
+  ], [options.mySets, options.customSets]);
+
   const changeQty = useCallback((key, delta) => {
     setQueue((q) => q.map((c) => (c.key === key ? { ...c, qty: c.qty + delta } : c)).filter((c) => c.qty > 0));
   }, []);
@@ -431,6 +452,11 @@ export default function App() {
               </Box>
             </Box>
             {ACCOUNTS_ENABLED && <AccountMenu sync={sync} onPrivacy={() => navigate('privacy')} />}
+            <Button color="inherit" startIcon={<FactCheckOutlinedIcon />} onClick={() => navigate('need')}
+              aria-current={view === 'need' ? 'page' : undefined}
+              sx={{ flexShrink: 0, display: { xs: 'none', md: 'inline-flex' }, color: view === 'need' ? 'primary.main' : 'inherit' }}>
+              Want list
+            </Button>
             <Button color="inherit" startIcon={<GridViewIcon />} onClick={() => navigate('sets', { game: route.game })}
               aria-current={view === 'sets' || drawerView ? 'page' : undefined}
               sx={{ flexShrink: 0, display: { xs: 'none', md: 'inline-flex' }, color: view === 'sets' || drawerView ? 'primary.main' : 'inherit' }}>
@@ -487,8 +513,21 @@ export default function App() {
             onVendorWaitlist={WAITLIST_ENABLED ? () => setWaitlist('vendor') : null}
           />
         )}
+        {view === 'need' && (
+          <WantListPage
+            sources={wantSources}
+            getSetsInfo={getSetsInfo}
+            variants={options.variants}
+            owned={owned}
+            onGotIt={gotIt}
+            setsHref={routeUrl('sets')}
+            onOpenSets={() => navigate('sets')}
+          />
+        )}
         {view === 'sets' && (
           <MySetsPage
+            wantHref={routeUrl('need')}
+            onOpenWant={() => navigate('need')}
             game={game}
             onGameChange={(g) => navigate('sets', { game: g })}
             setsInfo={setsInfo}

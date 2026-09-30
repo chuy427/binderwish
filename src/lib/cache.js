@@ -55,11 +55,18 @@ export async function getJSON(url, ttl = TTL.search) {
   if (cached !== undefined) return cached;
   if (inflight.has(url)) return inflight.get(url);
   const p = (async () => {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-    const data = await res.json();
-    cacheWrite(url, data);
-    return data;
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+      const data = await res.json();
+      cacheWrite(url, data);
+      return data;
+    } catch (e) {
+      // Offline (e.g. at a card show): an expired copy beats nothing.
+      const stale = cacheRead(url, Infinity);
+      if (stale !== undefined) return stale;
+      throw e;
+    }
   })().finally(() => inflight.delete(url));
   inflight.set(url, p);
   return p;
