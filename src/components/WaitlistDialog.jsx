@@ -6,6 +6,7 @@ import {
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PlaceholderCard from './PlaceholderCard';
 import { GAME_LIST } from '../games';
+import { SAMPLE_LOGO } from '../lib/logo';
 
 // Where signups go: any form backend that accepts a JSON POST and allows
 // cross-origin requests (e.g. Formspree: https://formspree.io/f/<id>). Set
@@ -17,11 +18,6 @@ export const WAITLIST_ENABLED = !!WAITLIST_ENDPOINT || import.meta.env.DEV;
 const SAMPLE = {
   game: 'pokemon', name: 'Charizard ex', setName: '151', number: '006', numberLabel: '006/165',
   variantLabel: 'Holo', tcgplayerId: 502558, price: 7.56,
-};
-// Stand-in shop logo for the vendor preview's QR code.
-const SAMPLE_LOGO = {
-  aspect: 1,
-  src: `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="#FF6347"/><text x="50" y="44" text-anchor="middle" font-family="Arial,sans-serif" font-weight="800" font-size="25" fill="#1B1B1F">YOUR</text><text x="50" y="72" text-anchor="middle" font-family="Arial,sans-serif" font-weight="800" font-size="25" fill="#1B1B1F">LOGO</text></svg>')}`,
 };
 const PREVIEW_PX = 190;
 const CARD_PX = (63 / 25.4) * 96;

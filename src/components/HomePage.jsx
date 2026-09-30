@@ -3,7 +3,8 @@ import { Box, Container, Typography } from '@mui/material';
 import Hero from './home/Hero';
 import HowItWorks from './home/HowItWorks';
 import { Anatomy, Compare, FeatureTiles, FinalCta } from './home/Sections';
-import VendorSection from './VendorSection';
+import VendorSection, { VendorSteps } from './VendorSection';
+import AudienceSwitch from './home/AudienceSwitch';
 import SiteFootnote from './SiteFootnote';
 import { useShowcase } from './home/useShowcase';
 import { DEFAULT_GAME, GAME_LIST } from '../games';
@@ -15,6 +16,17 @@ import { DEFAULT_GAME, GAME_LIST } from '../games';
 export default function HomePage({ setsByGame, loadGameSets, onStart, onPrivacy, onVendorWaitlist }) {
   const [featuredId, setFeaturedId] = useState(DEFAULT_GAME);
   const showcase = useShowcase(featuredId, setsByGame[featuredId]);
+  // Collector or vendor story below the hero. Vendors can be sent straight to
+  // theirs with <base>?for=vendors.
+  const [audience, setAudienceState] = useState(() =>
+    new URLSearchParams(location.search).get('for') === 'vendors' ? 'vendor' : 'collector');
+  const setAudience = (a) => {
+    setAudienceState(a);
+    const url = new URL(location.href);
+    if (a === 'vendor') url.searchParams.set('for', 'vendors'); else url.searchParams.delete('for');
+    history.replaceState(history.state, '', url);
+  };
+  const vendor = audience === 'vendor';
 
   // Load every game's set list so each showcase is ready when it's picked.
   useEffect(() => { GAME_LIST.forEach((g) => loadGameSets(g.id)); }, [loadGameSets]);
@@ -31,12 +43,23 @@ export default function HomePage({ setsByGame, loadGameSets, onStart, onPrivacy,
         gameId={featuredId}
         onGame={setFeaturedId}
       />
-      <HowItWorks showcase={showcase} />
-      <FeatureTiles showcase={showcase} onStart={startTool} />
-      <Anatomy showcase={showcase} />
-      <Compare showcase={showcase} />
-      <VendorSection showcase={showcase} onStart={startTool} onWaitlist={onVendorWaitlist} />
-      <FinalCta onStart={startTool} />
+      <AudienceSwitch value={audience} onChange={setAudience} />
+      {vendor ? (
+        <Box key="vendor" className="bw-fade">
+          <VendorSection showcase={showcase} onStart={startTool} onWaitlist={onVendorWaitlist} />
+          <VendorSteps />
+          <Anatomy showcase={showcase} vendor />
+          <FinalCta onStart={startTool} vendor onWaitlist={onVendorWaitlist} />
+        </Box>
+      ) : (
+        <Box key="collector" className="bw-fade">
+          <HowItWorks showcase={showcase} />
+          <FeatureTiles showcase={showcase} onStart={startTool} />
+          <Anatomy showcase={showcase} />
+          <Compare showcase={showcase} />
+          <FinalCta onStart={startTool} />
+        </Box>
+      )}
 
       <Container maxWidth="lg" component="footer" sx={{ py: 4 }}>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center' }}>

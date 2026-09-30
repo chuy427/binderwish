@@ -42,5 +42,11 @@ export function qrLogoProps(options) {
   return { level: 'H', size: QR_UNITS, imageSettings: { src: logo.src, width, height, excavate: true } };
 }
 
+// Stand-in shop logo for vendor previews (waitlist, home page).
+export const SAMPLE_LOGO = {
+  aspect: 1,
+  src: `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="#FF6347"/><text x="50" y="44" text-anchor="middle" font-family="Arial,sans-serif" font-weight="800" font-size="25" fill="#1B1B1F">YOUR</text><text x="50" y="72" text-anchor="middle" font-family="Arial,sans-serif" font-weight="800" font-size="25" fill="#1B1B1F">LOGO</text></svg>')}`,
+};
+
 // A logo needs a slightly bigger code to stay easy to scan from home prints.
 export const MIN_QR_WITH_LOGO = 18;

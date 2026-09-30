@@ -11,6 +11,7 @@ import CardFit from './CardFit';
 import PlaceholderCard from '../PlaceholderCard';
 import { tcgplayerUrl } from '../../catalog';
 import { TOMATO } from '../../theme';
+import { SAMPLE_LOGO } from '../../lib/logo';
 
 const INK = '#1B1B1F';
 const tileSx = { flexShrink: 0, width: { xs: 140, md: 180 }, height: { xs: 140, md: 180 }, borderRadius: '28px', overflow: 'hidden', position: 'relative', display: 'grid', placeItems: 'center' };
@@ -95,9 +96,16 @@ export function FeatureTiles({ showcase, onStart }) {
 }
 
 // ---------- Placeholder anatomy ----------
-export function Anatomy({ showcase }) {
+const VENDOR_POINTS = [
+  ['Real card size', '63 × 88 mm — slides into the same sleeves and binder pages as your stock.'],
+  ['Today’s price, printed', 'The TCGPlayer market price sits under the QR, and the QR always opens the live one.'],
+  ['Clearly marked', 'A “placeholder · not a real card” band that names the variant — no confusion at the sale.'],
+  ['Your logo on the QR', 'Put your shop’s logo in the middle of every code, so each price check carries your name.'],
+];
+
+export function Anatomy({ showcase, vendor = false }) {
   const sample = showcase?.chase[1] || showcase?.cards[0];
-  const points = [
+  const points = vendor ? VENDOR_POINTS : [
     ['Real card size', '63 × 88 mm — fits standard sleeves and 9-pocket binder pages.'],
     ['The card’s own art', 'Name, number and set are right there on the art, so you always know what goes where.'],
     ['Clearly marked', 'A “placeholder · not a real card” band that also names the variant.'],
@@ -109,12 +117,14 @@ export function Anatomy({ showcase }) {
         <Reveal sx={{ mx: 'auto', position: 'relative' }}>
           <Box sx={{ position: 'absolute', inset: -40, background: 'radial-gradient(circle, rgba(255,99,71,.25), transparent 65%)' }} />
           <Box key={showcase?.gameId} className="bw-swap" sx={{ position: 'relative', transform: 'rotate(-4deg)' }}>
-            {sample && <PlaceholderCard slot={sample} options={{ qrCorner: 'auto', qrSize: 14, price: true }} highRes style={{ boxShadow: '0 30px 70px rgba(0,0,0,.6)' }} />}
+            {sample && <PlaceholderCard slot={sample} options={{ qrCorner: 'auto', qrSize: 14, price: true, qrLogo: vendor ? SAMPLE_LOGO : null }} highRes style={{ boxShadow: '0 30px 70px rgba(0,0,0,.6)' }} />}
           </Box>
         </Reveal>
         <Reveal delay={150}>
           <Typography variant="overline" color="primary">What you print</Typography>
-          <Typography variant="h2" sx={{ fontSize: { xs: 28, md: 44 }, mb: 4 }}>A placeholder,<br />not a proxy</Typography>
+          <Typography variant="h2" sx={{ fontSize: { xs: 28, md: 44 }, mb: 4 }}>
+            {vendor ? <>What goes<br />on your table</> : <>A placeholder,<br />not a proxy</>}
+          </Typography>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 3 }}>
             {points.map(([t, b]) => (
               <Box key={t} sx={{ borderTop: '1px solid rgba(255,255,255,.1)', pt: 2 }}>
@@ -179,16 +189,29 @@ export function Compare({ showcase }) {
 }
 
 // ---------- Closing call to action ----------
-export function FinalCta({ onStart }) {
+export function FinalCta({ onStart, vendor = false, onWaitlist }) {
   return (
     <Container maxWidth="lg" sx={{ py: { xs: 6, md: 10 } }}>
       <Reveal>
         <Box sx={{ position: 'relative', overflow: 'hidden', borderRadius: '32px', textAlign: 'center', px: 3, py: { xs: 8, md: 12 },
           background: 'radial-gradient(ellipse at 50% 120%, rgba(255,99,71,.55), rgba(255,99,71,.08) 55%, #171717 80%)', border: '1px solid rgba(255,255,255,.07)' }}>
           <Typography variant="overline" color="primary">Try it for free</Typography>
-          <Typography variant="h2" sx={{ fontSize: { xs: 30, md: 60 }, my: 2 }}>Your binder,<br />finished today</Typography>
-          <Typography color="text.secondary" sx={{ mb: 4 }}>Free, no account needed. Your checklist is saved in your browser.</Typography>
-          <Button variant="contained" size="large" onClick={onStart} sx={{ px: 4 }}>Start your checklist</Button>
+          {vendor ? (
+            <>
+              <Typography variant="h2" sx={{ fontSize: { xs: 30, md: 60 }, my: 2 }}>Your display binder,<br />ready by the next show</Typography>
+              <Typography color="text.secondary" sx={{ mb: 4 }}>Free, no account needed. Logo QR codes and printed placeholders are on the way.</Typography>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ justifyContent: 'center', alignItems: 'center' }}>
+                <Button variant="contained" size="large" onClick={onStart} sx={{ px: 4 }}>Build a showcase binder</Button>
+                {onWaitlist && <Button variant="outlined" size="large" onClick={onWaitlist} sx={{ px: 3 }}>Join the vendor waitlist</Button>}
+              </Stack>
+            </>
+          ) : (
+            <>
+              <Typography variant="h2" sx={{ fontSize: { xs: 30, md: 60 }, my: 2 }}>Your binder,<br />finished today</Typography>
+              <Typography color="text.secondary" sx={{ mb: 4 }}>Free, no account needed. Your checklist is saved in your browser.</Typography>
+              <Button variant="contained" size="large" onClick={onStart} sx={{ px: 4 }}>Start your checklist</Button>
+            </>
+          )}
         </Box>
       </Reveal>
     </Container>
