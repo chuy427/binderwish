@@ -127,6 +127,22 @@ const onepiece = {
     return { cards, hasMore: false };
   },
 
+  // Every card of one character for a custom set, matched on the exact character
+  // name ("Monkey.D.Luffy"), so event cards merely titled after them stay out.
+  collectionRules: ['name'],
+  async collectionCards({ value }) {
+    const q = value.trim().toLowerCase();
+    const names = await getJSON(await catalogFile('onepiece', 'search.json'), TTL.card);
+    const groups = new Set(names.filter(([n]) => n.toLowerCase() === q).flatMap(([, gs]) => gs));
+    const perSet = await Promise.all([...groups].map((id) => onepiece.loadSetCards(String(id))));
+    return perSet.flat().filter((c) => { const n = c.name.toLowerCase(); return n === q || n.startsWith(`${q} (`); });
+  },
+  // Character names for the custom set picker.
+  async characterNames() {
+    const names = await getJSON(await catalogFile('onepiece', 'search.json'), TTL.card);
+    return names.map(([n]) => n);
+  },
+
   // Each card is exactly one product.
   matchProducts: (rows, card) => rows.filter((r) => r[1] === card.tcgplayerId),
   specialVariant: (card) => card.variant || 'Standard',

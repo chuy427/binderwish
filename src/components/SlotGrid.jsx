@@ -26,7 +26,10 @@ export function SlotSkeletons({ count = 12 }) {
 
 // tapToOwn: tapping the card marks it owned (set pages, which track a collection);
 // otherwise tapping adds it to the print sheet (search).
-export function SlotCard({ slot, owned, queued, onToggleOwned, onAdd, tapToOwn = false }) {
+// picking: { picked } — tapping adds / removes the card from a custom set.
+// hideAction: { label, icon, onClick } — a small extra button (custom sets: hide / remove).
+export function SlotCard({ slot, owned, queued, onToggleOwned, onAdd, tapToOwn = false, picking = null, hideAction = null }) {
+  if (picking) queued = picking.picked;
   return (
     <Card
       sx={{
@@ -39,7 +42,7 @@ export function SlotCard({ slot, owned, queued, onToggleOwned, onAdd, tapToOwn =
         '&:hover .sheet-chip': { opacity: 0 },
       }}
     >
-      <CardActionArea onClick={tapToOwn ? onToggleOwned : onAdd} sx={{ p: 1 }}
+      <CardActionArea onClick={tapToOwn && !picking ? onToggleOwned : onAdd} sx={{ p: 1 }}
         aria-label={tapToOwn ? `${slot.name}${slot.variantLabel ? ` (${slot.variantLabel})` : ''}: ${owned ? 'owned — tap to unmark' : 'tap if you own this card'}` : undefined}
         aria-pressed={tapToOwn ? owned : undefined}>
         <Box component={CardImg} slot={slot} alt={slot.name} loading="lazy"
@@ -61,6 +64,7 @@ export function SlotCard({ slot, owned, queued, onToggleOwned, onAdd, tapToOwn =
         </Box>
       </CardActionArea>
 
+      {!picking && (
       <Tooltip title={owned ? 'Owned — tap to unmark' : 'Mark as owned'}>
         <IconButton
           size="small"
@@ -75,7 +79,27 @@ export function SlotCard({ slot, owned, queued, onToggleOwned, onAdd, tapToOwn =
           {owned ? <CheckCircleIcon fontSize="small" /> : <RadioButtonUncheckedIcon fontSize="small" />}
         </IconButton>
       </Tooltip>
-      {tapToOwn ? (
+      )}
+      {hideAction && (
+        <Tooltip title={hideAction.label}>
+          <IconButton size="small" aria-label={`${hideAction.label}: ${slot.name}${slot.variantLabel ? ` (${slot.variantLabel})` : ''}`} onClick={hideAction.onClick}
+            sx={{ position: 'absolute', top: 44, left: 12, bgcolor: 'background.paper', boxShadow: 2, p: 0.25, color: 'text.secondary',
+              opacity: { xs: 1, md: 0 }, transition: 'opacity .15s', '.MuiCard-root:hover &, &:focus-visible': { opacity: 1 }, '&:hover': { bgcolor: 'background.paper' } }}>
+            {hideAction.icon}
+          </IconButton>
+        </Tooltip>
+      )}
+      {picking ? (
+        <>
+          {picking.picked && (
+            <Chip className="sheet-chip" size="small" color="primary" icon={<CheckCircleIcon />} label="In set"
+              sx={{ position: 'absolute', top: 14, right: 14, pointerEvents: 'none', transition: 'opacity .15s', boxShadow: 2 }} />
+          )}
+          <Chip className="add-chip" size="small" color={picking.picked ? 'default' : 'primary'}
+            icon={picking.picked ? <RemoveIcon /> : <AddIcon />} label={picking.picked ? 'Remove' : 'Add to set'}
+            sx={{ position: 'absolute', top: 14, right: 14, pointerEvents: 'none', opacity: 0, transition: 'opacity .15s', boxShadow: 2 }} />
+        </>
+      ) : tapToOwn ? (
         <>
           {queued && (
             <Chip className="sheet-chip" size="small" color="primary" icon={<PrintIcon />} label="On sheet"

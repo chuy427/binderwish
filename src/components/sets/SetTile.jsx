@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Box, LinearProgress, Typography } from '@mui/material';
 import { DISPLAY_FONT, TOMATO } from '../../theme';
+import { BinderLine } from './BinderInfo';
 
 const toDate = (iso) => new Date(`${iso.slice(0, 10)}T00:00:00`);
 export const formatDate = (iso) => {
@@ -49,7 +50,7 @@ export function ProgressLine({ progress, sx }) {
 
 // One set in the "My sets" grid: logo, series, release date and name — plus
 // progress for sets you're collecting.
-export default function SetTile({ set, gameName, href, progress, tracked, onOpen }) {
+export default function SetTile({ set, gameName, href, progress, tracked, place, onOpen }) {
   return (
     <Box component="a" href={href} onClick={(e) => { e.preventDefault(); onOpen(); }}
       sx={{ display: 'block', color: 'inherit', textDecoration: 'none', borderRadius: '22px', p: 1.25, transition: 'background-color .2s, transform .2s',
@@ -67,6 +68,7 @@ export default function SetTile({ set, gameName, href, progress, tracked, onOpen
         {set.series && <Typography variant="body2" sx={{ color: 'primary.main', fontWeight: 600 }}>{set.series}</Typography>}
         {set.released && <Typography variant="body2" color="text.secondary">{releaseLabel(set.released)}</Typography>}
         <Typography sx={{ fontFamily: DISPLAY_FONT, fontWeight: 700, fontSize: 17, lineHeight: 1.25, mt: 0.75 }}>{set.name}</Typography>
+        {tracked && <BinderLine binder={place?.binder} location={place?.location} sx={{ mt: 0.75 }} />}
         {tracked && <ProgressLine progress={progress} />}
       </Box>
     </Box>

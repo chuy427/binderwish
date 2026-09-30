@@ -9,6 +9,7 @@ import PrintIcon from '@mui/icons-material/Print';
 import BookmarkAddedIcon from '@mui/icons-material/BookmarkAdded';
 import BookmarkAddOutlinedIcon from '@mui/icons-material/BookmarkAddOutlined';
 import { SetLogo, releaseLabel } from './SetTile';
+import BinderInfo from './BinderInfo';
 import { SlotCard, SlotSkeletons, gridSx } from '../SlotGrid';
 import { setSlots } from '../../catalog';
 import { DISPLAY_FONT } from '../../theme';
@@ -18,7 +19,7 @@ const money = (n) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2,
 // One set's page: its header (logo, series, release, progress) and every card —
 // and, for master sets, every variant — to check off or add to the print sheet.
 export default function SetPage({
-  game, setId, setsInfo, variants, owned, queuedKeys, tracked,
+  game, setId, setsInfo, variants, owned, queuedKeys, tracked, place = {}, binders = [], locations = [], onSavePlace,
   onToggleTracked, onToggleOwned, onAdd, onAddMany, onOpenSheet, onBack, backHref,
 }) {
   const set = setsInfo.sets.find((s) => s.id === setId);
@@ -82,6 +83,7 @@ export default function SetPage({
             {set?.name || '…'}
           </Typography>
           {set?.released && <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>{releaseLabel(set.released)}</Typography>}
+          <BinderInfo binder={place.binder} location={place.location} binders={binders} locations={locations} onSave={onSavePlace} />
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
             {slots ? (
               <>You own <b>{stats.have}</b> of {stats.total}{variants ? ' (master set)' : ''} · {pct}%

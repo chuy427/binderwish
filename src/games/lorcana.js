@@ -57,6 +57,14 @@ const lorcana = {
     return cards.map(toCard);
   },
 
+  // Every version of a character for a custom set ("Mickey Mouse" → Brave Little
+  // Tailor, Artful Rogue, …, plus shared cards like "Mickey Mouse & Minnie Mouse").
+  collectionRules: ['name'],
+  async collectionCards({ value }) {
+    const { results } = await getJSON(`${API}/cards/search?q=${encodeURIComponent(`name:"${value.replace(/"/g, '')}"`)}`, TTL.search);
+    return (results || []).map(toCard);
+  },
+
   // Lorcast returns every match at once (no paging).
   async searchByName(query) {
     const { results } = await getJSON(`${API}/cards/search?q=${encodeURIComponent(query)}`, TTL.search);

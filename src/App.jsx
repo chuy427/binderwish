@@ -11,6 +11,8 @@ import CloseIcon from '@mui/icons-material/Close';
 import SearchPanel from './components/SearchPanel';
 import MySetsPage from './components/sets/MySetsPage';
 import SetPage from './components/sets/SetPage';
+import CustomSetPage from './components/sets/CustomSetPage';
+import { cleanCustomSets, newCustomSetId } from './lib/customSets';
 import PrintSheetPanel from './components/PrintSheetPanel';
 import PrintArea from './components/PrintArea';
 import HomePage from './components/HomePage';
@@ -34,11 +36,22 @@ const DEFAULT_OPTIONS = {
   // Sets shown under "Collecting" on My sets: [{ game, setId }]. Kept with the
   // settings so it saves, backs up and syncs along with them.
   mySets: [],
+  // Custom sets (see lib/customSets.js).
+  customSets: [],
 };
-const cleanMySets = (list) => (Array.isArray(list) ? list : [])
-  .filter((m) => m && GAMES[m.game] && typeof m.setId === 'string' && m.setId)
-  .filter((m, i, all) => all.findIndex((x) => x.game === m.game && x.setId === m.setId) === i);
-const withDefaults = (o) => ({ ...DEFAULT_OPTIONS, ...o, mySets: cleanMySets(o?.mySets) });
+// Each entry can also say where the set is kept: { binder, location }.
+const place = (v) => (typeof v === 'string' ? v.trim().slice(0, 60) : '');
+const cleanMySets = (list) => {
+  const out = new Map();
+  for (const m of Array.isArray(list) ? list : []) {
+    if (!m || !GAMES[m.game] || typeof m.setId !== 'string' || !m.setId) continue;
+    const k = `${m.game}|${m.setId}`;
+    const prev = out.get(k);
+    out.set(k, { game: m.game, setId: m.setId, binder: prev?.binder || place(m.binder), location: prev?.location || place(m.location) });
+  }
+  return [...out.values()];
+};
+const withDefaults = (o) => ({ ...DEFAULT_OPTIONS, ...o, mySets: cleanMySets(o?.mySets), customSets: cleanCustomSets(o?.customSets, GAMES) });
 // Parallel card-data lookups for cards the bundled catalog couldn't match.
 const CONCURRENCY = 4;
 
@@ -71,6 +84,7 @@ function routeUrl(view, { game, set, q } = {}) {
   const gameQs = game && game !== DEFAULT_GAME ? `?game=${game}` : '';
   if (view === 'sets') return `${BASE}sets${gameQs}`;
   if (view === 'set') return `${BASE}sets/${encodeURIComponent(set)}${gameQs}`;
+  if (view === 'custom') return `${BASE}sets/custom/${encodeURIComponent(set)}${gameQs}`;
   if (view !== 'search') return BASE;
   const params = new URLSearchParams();
   if (game && game !== DEFAULT_GAME) params.set('game', game);
@@ -86,11 +100,12 @@ function readRoute() {
   const path = location.pathname.startsWith(BASE) ? location.pathname.slice(BASE.length) : '';
   const params = new URLSearchParams(location.search);
   const clean = path.replace(/\/$/, '');
-  const setPath = clean.startsWith('sets/') ? decodeURIComponent(clean.slice(5)) : null;
+  const customPath = clean.startsWith('sets/custom/') ? decodeURIComponent(clean.slice(12)) : null;
+  const setPath = !customPath && clean.startsWith('sets/') ? decodeURIComponent(clean.slice(5)) : null;
   return {
-    view: setPath ? 'set' : ({ search: 'search', privacy: 'privacy', sets: 'sets' })[clean] || 'home',
+    view: customPath ? 'custom' : setPath ? 'set' : ({ search: 'search', privacy: 'privacy', sets: 'sets' })[clean] || 'home',
     game: GAMES[params.get('game')] ? params.get('game') : DEFAULT_GAME,
-    set: setPath || params.get('set') || null,
+    set: customPath || setPath || params.get('set') || null,
     q: params.get('q') || '',
     // Remounts the search panel when arriving from somewhere else (home, back/forward).
     key: `${params.get('game') || ''}|${params.get('set') || ''}|${params.get('q') || ''}|${Date.now()}`,
@@ -173,7 +188,9 @@ export default function App() {
   };
   const view = route.view;
   // Views with the print sheet (and the header's Print button).
-  const toolView = view === 'search' || view === 'set';
+  const toolView = view === 'search' || view === 'set' || view === 'custom';
+  // Collection pages (a set, a custom set): no sidebar — the print sheet opens in a drawer.
+  const drawerView = view === 'set' || view === 'custom';
 
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ queue, options })); } catch {}
@@ -223,10 +240,34 @@ export default function App() {
     const next = cleanMySets([...o.mySets, ...slots.filter((s) => s?.setId).map((s) => ({ game: s.game || 'pokemon', setId: s.setId }))]);
     return next.length === o.mySets.length ? o : { ...o, mySets: next };
   }), []);
+  // Binder + location for a set (adds it to My sets if it isn't there yet).
+  const setSetPlace = useCallback((gameId, setId, { binder, location }) => setOptions((o) => {
+    const has = o.mySets.some((m) => m.game === gameId && m.setId === setId);
+    const list = has ? o.mySets : [...o.mySets, { game: gameId, setId }];
+    return { ...o, mySets: cleanMySets(list.map((m) => (m.game === gameId && m.setId === setId ? { ...m, binder: place(binder), location: place(location) } : m))) };
+  }), []);
   const toggleTracked = useCallback((gameId, setId) => setOptions((o) => {
     const has = o.mySets.some((m) => m.game === gameId && m.setId === setId);
     return { ...o, mySets: has ? o.mySets.filter((m) => !(m.game === gameId && m.setId === setId)) : [...o.mySets, { game: gameId, setId }] };
   }), []);
+
+  // Custom sets
+  const createCustomSet = (v) => {
+    const id = newCustomSetId();
+    setOptions((o) => ({ ...o, customSets: cleanCustomSets([...o.customSets, { ...v, id, picks: [], hidden: [], created: Date.now() }], GAMES) }));
+    navigate('custom', { game: v.game, set: id });
+  };
+  const updateCustomSet = useCallback((id, patch) => setOptions((o) => ({
+    ...o, customSets: cleanCustomSets(o.customSets.map((c) => (c.id === id ? { ...c, ...patch } : c)), GAMES),
+  })), []);
+  const deleteCustomSet = (id) => {
+    const removed = options.customSets.find((c) => c.id === id);
+    setOptions((o) => ({ ...o, customSets: o.customSets.filter((c) => c.id !== id) }));
+    navigate('sets', { game: removed?.game });
+    if (removed) {
+      setToast({ message: `Deleted “${removed.name}”`, undo: () => setOptions((o) => ({ ...o, customSets: cleanCustomSets([...o.customSets, removed], GAMES) })) });
+    }
+  };
 
   // Tapping a card toggles it on / off the print sheet (quantities are set with
   // − / + on the sheet itself).
@@ -246,12 +287,12 @@ export default function App() {
     setToast(`Added ${label}`);
   }, [owned, queuedKeys, trackSets]);
 
-  const addMany = useCallback((slots) => {
+  const addMany = useCallback((slots, { track = true } = {}) => {
     setQueue((q) => {
       const have = new Set(q.map((c) => c.key));
       return sortQueue([...q, ...slots.filter((s) => !have.has(s.key)).map(toItem)]);
     });
-    trackSets(slots);
+    if (track) trackSets(slots);
     setToast(`Added ${slots.length} placeholder${slots.length === 1 ? '' : 's'}`);
   }, [trackSets]);
 
@@ -285,7 +326,11 @@ export default function App() {
     } else {
       const merged = mergeBackup({ owned: [...owned], queue }, data);
       setOwned(merged.owned);
-      setOptions((o) => ({ ...o, mySets: cleanMySets([...o.mySets, ...(data.options?.mySets || [])]) }));
+      setOptions((o) => ({
+        ...o,
+        mySets: cleanMySets([...o.mySets, ...(data.options?.mySets || [])]),
+        customSets: cleanCustomSets([...o.customSets, ...(data.options?.customSets || []).filter((c) => !o.customSets.some((x) => x.id === c?.id))], GAMES),
+      }));
       setQueue(sortQueue(merged.queue));
       setToast(`Merged backup: ${merged.owned.size} owned, ${merged.queue.length} on print sheet`);
     }
@@ -306,6 +351,13 @@ export default function App() {
   const readyCount = queue.length - stats.pending;
 
   // Clearing syncs to every device, so it can be undone for a few seconds.
+  // Binder names / locations already in use — suggested when cataloguing a set.
+  const places = useMemo(() => {
+    const all = [...options.mySets, ...options.customSets];
+    const uniq = (k) => [...new Set(all.map((x) => x[k]).filter(Boolean))].sort();
+    return { binders: uniq('binder'), locations: uniq('location') };
+  }, [options.mySets, options.customSets]);
+
   const clearQueue = () => {
     const previous = queue;
     setQueue([]);
@@ -380,12 +432,12 @@ export default function App() {
             </Box>
             {ACCOUNTS_ENABLED && <AccountMenu sync={sync} onPrivacy={() => navigate('privacy')} />}
             <Button color="inherit" startIcon={<GridViewIcon />} onClick={() => navigate('sets', { game: route.game })}
-              aria-current={view === 'sets' || view === 'set' ? 'page' : undefined}
-              sx={{ flexShrink: 0, display: { xs: 'none', md: 'inline-flex' }, color: view === 'sets' || view === 'set' ? 'primary.main' : 'inherit' }}>
+              aria-current={view === 'sets' || drawerView ? 'page' : undefined}
+              sx={{ flexShrink: 0, display: { xs: 'none', md: 'inline-flex' }, color: view === 'sets' || drawerView ? 'primary.main' : 'inherit' }}>
               My sets
             </Button>
             <IconButton aria-label="My sets" onClick={() => navigate('sets', { game: route.game })}
-              sx={{ display: { xs: 'inline-flex', md: 'none' }, color: view === 'sets' || view === 'set' ? 'primary.main' : 'inherit' }}>
+              sx={{ display: { xs: 'inline-flex', md: 'none' }, color: view === 'sets' || drawerView ? 'primary.main' : 'inherit' }}>
               <GridViewIcon />
             </IconButton>
             {!toolView ? (
@@ -398,9 +450,9 @@ export default function App() {
               variant="contained"
               size="large"
               startIcon={stats.pending ? <CircularProgress size={18} color="inherit" /> : <PrintIcon />}
-              disabled={stats.count === 0 || (view !== 'set' && (stats.pending > 0 || printing))}
+              disabled={stats.count === 0 || (!drawerView && (stats.pending > 0 || printing))}
               // On set pages (no sidebar) this opens the print sheet to review first.
-              onClick={() => (view === 'set' ? setSheetOpen(true) : setPrinting(true))}
+              onClick={() => (drawerView ? setSheetOpen(true) : setPrinting(true))}
             >
               {stats.pending
                 ? `Looking up ${readyCount}/${queue.length}`
@@ -441,6 +493,10 @@ export default function App() {
             onGameChange={(g) => navigate('sets', { game: g })}
             setsInfo={setsInfo}
             mySets={options.mySets}
+            customSets={options.customSets}
+            customHref={(id) => routeUrl('custom', { game: route.game, set: id })}
+            onOpenCustom={(id) => navigate('custom', { game: route.game, set: id })}
+            onCreateCustom={createCustomSet}
             owned={owned}
             variants={options.variants}
             setHref={(id) => routeUrl('set', { game: route.game, set: id })}
@@ -451,11 +507,30 @@ export default function App() {
         <Container maxWidth="xl" sx={{ py: 3 }}>
           <Box sx={{
             display: 'grid',
-            gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: view === 'set' ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) 360px' },
+            gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: drawerView ? 'minmax(0, 1fr)' : 'minmax(0, 1fr) 360px' },
             gap: 3,
             alignItems: 'start',
           }}>
-            {view === 'set' ? (
+            {view === 'custom' ? (
+              <CustomSetPage
+                key={route.set}
+                cs={options.customSets.find((c) => c.id === route.set)}
+                game={game}
+                setsInfo={setsInfo}
+                variants={options.variants}
+                owned={owned}
+                queuedKeys={queuedKeys}
+                onUpdate={(patch) => updateCustomSet(route.set, patch)}
+                onDelete={() => deleteCustomSet(route.set)}
+                binders={places.binders}
+                locations={places.locations}
+                onToggleOwned={toggleOwned}
+                onAddMany={(slots) => { addMany(slots, { track: false }); setSheetOpen(true); }}
+                onOpenSheet={() => setSheetOpen(true)}
+                backHref={routeUrl('sets', { game: route.game })}
+                onBack={() => navigate('sets', { game: route.game })}
+              />
+            ) : view === 'set' ? (
               <SetPage
                 key={`${route.game}|${route.set}`}
                 game={game}
@@ -465,6 +540,10 @@ export default function App() {
                 owned={owned}
                 queuedKeys={queuedKeys}
                 tracked={options.mySets.some((m) => m.game === route.game && m.setId === route.set)}
+                place={options.mySets.find((m) => m.game === route.game && m.setId === route.set)}
+                binders={places.binders}
+                locations={places.locations}
+                onSavePlace={(v) => setSetPlace(route.game, route.set, v)}
                 onToggleTracked={() => toggleTracked(route.game, route.set)}
                 onToggleOwned={toggleOwned}
                 onAdd={togglePrint}
@@ -490,9 +569,9 @@ export default function App() {
               onAddMany={addMany}
             />
             )}
-            {view !== 'set' && printSheet(false)}
+            {!drawerView && printSheet(false)}
           </Box>
-          {view === 'set' && (
+          {drawerView && (
             <Drawer className="no-print" anchor="right" open={sheetOpen} onClose={() => setSheetOpen(false)}
               slotProps={{ paper: { sx: { width: { xs: '100%', sm: 420 }, bgcolor: 'background.default', backgroundImage: 'none' } } }}>
               <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', px: 2.5, pt: 2 }}>

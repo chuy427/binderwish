@@ -22,7 +22,9 @@ async function buildPages(queue, options, getSetsInfo) {
   for (const [k, items] of bySet) {
     const [gameId, setId] = [k.slice(0, k.indexOf('|')), k.slice(k.indexOf('|') + 1)];
     items.sort((a, b) => a.order - b.order);
-    const setName = items[0].setName;
+    // "151 — Blue Vault X binder" when the collector has catalogued where the set lives.
+    const binder = options.mySets?.find((m) => m.game === gameId && m.setId === setId)?.binder;
+    const setName = binder ? `${items[0].setName} — ${binder}` : items[0].setName;
     if (options.keepPositions) {
       const game = getGame(gameId);
       const all = await getSetsInfo(gameId)

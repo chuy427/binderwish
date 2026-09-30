@@ -3,8 +3,13 @@ import {
   Box, Container, InputAdornment, MenuItem, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
-import SetTile from './SetTile';
-import { useSetProgress } from './useSetProgress';
+import AddIcon from '@mui/icons-material/Add';
+import SetTile, { ProgressLine } from './SetTile';
+import { CustomSetArt } from './CustomSetPage';
+import CustomSetDialog from './CustomSetDialog';
+import { useCustomProgress, useSetProgress } from './useSetProgress';
+import { ruleSummary } from '../../lib/customSets';
+import { BinderLine } from './BinderInfo';
 import { GAME_LIST } from '../../games';
 import { DISPLAY_FONT, TOMATO } from '../../theme';
 
@@ -13,9 +18,17 @@ const newestFirst = (a, b) => (b.released || '').localeCompare(a.released || '')
 
 // "My sets": every set for a game (logo, series, release date), newest first,
 // with the sets you're collecting — and your progress in each — up top.
-export default function MySetsPage({ game, onGameChange, setsInfo, mySets, owned, variants, setHref, onOpenSet }) {
+export default function MySetsPage({
+  game, onGameChange, setsInfo, mySets, customSets, owned, variants, setHref, onOpenSet, customHref, onOpenCustom, onCreateCustom,
+}) {
   const [series, setSeries] = useState('all');
   const [q, setQ] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [binder, setBinder] = useState('all'); // all | '' (no binder) | a binder name
+  const inBinder = (b) => binder === 'all' || (b || '') === binder;
+  const myCustomAll = customSets.filter((c) => c.game === game.id);
+  const myCustom = myCustomAll.filter((c) => inBinder(c.binder));
+  const customProgress = useCustomProgress(game, myCustom, setsInfo, variants, owned);
 
   const sets = useMemo(() => {
     const list = setsInfo.sets.slice();
@@ -24,7 +37,10 @@ export default function MySetsPage({ game, onGameChange, setsInfo, mySets, owned
   const seriesList = useMemo(() => [...new Set(sets.map((s) => s.series).filter(Boolean))], [sets]);
 
   const trackedIds = useMemo(() => new Set(mySets.filter((m) => m.game === game.id).map((m) => m.setId)), [mySets, game.id]);
-  const collecting = sets.filter((s) => trackedIds.has(s.id));
+  const placeOf = useMemo(() => new Map(mySets.filter((m) => m.game === game.id).map((m) => [m.setId, m])), [mySets, game.id]);
+  const collectingAll = sets.filter((s) => trackedIds.has(s.id));
+  const binderNames = [...new Set([...collectingAll.map((s) => placeOf.get(s.id)?.binder), ...myCustomAll.map((c) => c.binder)].filter(Boolean))].sort();
+  const collecting = collectingAll.filter((s) => inBinder(placeOf.get(s.id)?.binder));
   const progress = useSetProgress(game, collecting.map((s) => s.id), setsInfo, variants, owned);
 
   const needle = q.trim().toLowerCase();
@@ -32,7 +48,7 @@ export default function MySetsPage({ game, onGameChange, setsInfo, mySets, owned
     && (!needle || s.name.toLowerCase().includes(needle) || (s.code || '').toLowerCase().includes(needle)));
 
   const tile = (s) => (
-    <SetTile key={s.id} set={s} gameName={game.name} href={setHref(s.id)} tracked={trackedIds.has(s.id)}
+    <SetTile key={s.id} set={s} gameName={game.name} href={setHref(s.id)} tracked={trackedIds.has(s.id)} place={placeOf.get(s.id)}
       progress={progress.get(s.id)} onOpen={() => onOpenSet(s.id)} />
   );
 
@@ -53,17 +69,67 @@ export default function MySetsPage({ game, onGameChange, setsInfo, mySets, owned
 
       {/* Sets you're collecting */}
       <Box sx={{ mt: 5 }}>
-        <Typography variant="h5" sx={{ fontWeight: 800, mb: 1.5 }}>Collecting</Typography>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 1.5, alignItems: { sm: 'center' } }}>
+          <Typography variant="h5" sx={{ fontWeight: 800, flex: 1 }}>Collecting</Typography>
+          {binderNames.length > 0 && (
+            <TextField select size="small" value={binder} onChange={(e) => setBinder(e.target.value)} sx={{ minWidth: { sm: 220 } }}
+              slotProps={{ htmlInput: { 'aria-label': 'Binder' } }}>
+              <MenuItem value="all">All binders</MenuItem>
+              {binderNames.map((b) => <MenuItem key={b} value={b}>{b}</MenuItem>)}
+              <MenuItem value="">No binder yet</MenuItem>
+            </TextField>
+          )}
+        </Stack>
         {collecting.length ? (
           <Box sx={tileGrid}>{collecting.map(tile)}</Box>
         ) : (
           <Box sx={{ p: 3, borderRadius: '18px', border: '1px dashed rgba(255,255,255,.14)', color: 'text.secondary' }}>
-            {setsInfo.loaded
-              ? <>No {game.name} sets yet. Open any set below and check off a card — it’ll show up here with your progress.</>
-              : 'Loading…'}
+            {!setsInfo.loaded ? 'Loading…'
+              : collectingAll.length ? 'No sets in this binder.'
+              : <>No {game.name} sets yet. Open any set below and check off a card — it’ll show up here with your progress.</>}
           </Box>
         )}
       </Box>
+
+      {/* Custom sets */}
+      <Box sx={{ mt: 5 }}>
+        <Typography variant="h5" sx={{ fontWeight: 800 }}>Custom sets</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+          Your own sets — every card of a {game.id === 'pokemon' ? 'Pokémon' : 'character'}{game.id === 'pokemon' ? ' or artist' : ''}, or any cards you hand-pick.
+        </Typography>
+        <Box sx={tileGrid}>
+          {myCustom.map((c) => {
+            const p = customProgress.get(c.id);
+            return (
+              <Box key={c.id} component="a" href={customHref(c.id)} onClick={(e) => { e.preventDefault(); onOpenCustom(c.id); }}
+                sx={{ display: 'block', color: 'inherit', textDecoration: 'none', borderRadius: '22px', p: 1.25, transition: 'background-color .2s, transform .2s',
+                  '&:hover': { bgcolor: 'rgba(255,255,255,.04)', transform: 'translateY(-2px)' }, '&:focus-visible': { outline: `2px solid ${TOMATO}`, outlineOffset: 2 } }}>
+                <CustomSetArt cs={c} gameName={game.name} preview={p?.preview || []} />
+                <Box sx={{ px: 0.5, pt: 1.5 }}>
+                  <Typography variant="body2" sx={{ color: 'primary.main', fontWeight: 600 }}>Custom set</Typography>
+                  <Typography variant="body2" color="text.secondary" noWrap>{ruleSummary(c) || 'Hand-picked'}</Typography>
+                  <Typography sx={{ fontFamily: DISPLAY_FONT, fontWeight: 700, fontSize: 17, lineHeight: 1.25, mt: 0.75, overflowWrap: 'anywhere' }}>{c.name}</Typography>
+                  <BinderLine binder={c.binder} location={c.location} sx={{ mt: 0.75 }} />
+                  <ProgressLine progress={p} />
+                </Box>
+              </Box>
+            );
+          })}
+          <Box component="button" type="button" onClick={() => setCreating(true)}
+            sx={{ font: 'inherit', color: 'inherit', cursor: 'pointer', textAlign: 'left', bgcolor: 'transparent', border: 0, borderRadius: '22px', p: 1.25,
+              '&:hover .new-box': { borderColor: TOMATO, color: TOMATO }, '&:focus-visible': { outline: `2px solid ${TOMATO}`, outlineOffset: 2 } }}>
+            <Box className="new-box" sx={{ height: 160, borderRadius: '18px', border: '1.5px dashed rgba(255,255,255,.2)', display: 'grid', placeItems: 'center',
+              color: 'text.secondary', transition: 'border-color .2s, color .2s' }}>
+              <Stack sx={{ alignItems: 'center' }} spacing={0.5}><AddIcon sx={{ fontSize: 36 }} /><Typography sx={{ fontWeight: 700 }}>New custom set</Typography></Stack>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ px: 0.5, pt: 1.5 }}>
+              e.g. {game.id === 'pokemon' ? 'every Charizard, or your Eevee favourites' : game.id === 'lorcana' ? 'every Stitch, or your favourite heroes' : 'every Luffy, or the Straw Hat crew'}
+            </Typography>
+          </Box>
+        </Box>
+      </Box>
+      <CustomSetDialog open={creating} defaultGame={game.id} onClose={() => setCreating(false)}
+        onSave={(v) => { setCreating(false); onCreateCustom(v); }} />
 
       {/* Every set */}
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mt: 6, mb: 2, alignItems: { sm: 'center' } }}>

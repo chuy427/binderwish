@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { setSlots } from '../../catalog';
+import { customSetSlots } from '../../lib/customSets';
 
 // Slot keys per set (game|set|variants) — loaded once, then progress is just a
 // count of owned keys, so checking cards off updates instantly.
@@ -39,4 +40,34 @@ export function useSetProgress(game, setIds, setsInfo, variants, owned) {
     }
     return out;
   }, [keys, idList, owned, variants, game]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+// Progress for custom sets: Map id -> { have, total } (hidden cards excluded).
+export function useCustomProgress(game, customSets, setsInfo, variants, owned) {
+  const [slots, setSlotsMap] = useState({}); // id -> slots
+  const sig = JSON.stringify(customSets.map((c) => [c.id, c.names, c.artists, c.picks.length]));
+  useEffect(() => {
+    if (!setsInfo.loaded) return undefined;
+    let cancelled = false;
+    (async () => {
+      for (const cs of customSets) {
+        try {
+          const all = await customSetSlots(game, cs, setsInfo, variants);
+          if (!cancelled) setSlotsMap((m) => ({ ...m, [cs.id]: all }));
+        } catch {}
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [game, sig, setsInfo, variants]); // eslint-disable-line react-hooks/exhaustive-deps
+  return useMemo(() => {
+    const out = new Map();
+    for (const cs of customSets) {
+      const all = slots[cs.id];
+      if (!all) continue;
+      const hidden = new Set(cs.hidden);
+      const shown = all.filter((s) => !hidden.has(s.key));
+      out.set(cs.id, { have: shown.filter((s) => owned.has(s.key)).length, total: shown.length, preview: shown.slice(0, 3) });
+    }
+    return out;
+  }, [slots, customSets, owned]);
 }

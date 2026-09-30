@@ -87,6 +87,23 @@ const pokemon = {
     return { cards: raw.filter((c) => !isPocket(c, setsInfo.pocketIds)).map(toCard), hasMore: raw.length === PAGE_SIZE };
   },
 
+  // Every card for a custom set rule: a Pokémon name (TCGdex matches names that
+  // contain it — "Charizard" also finds "Charizard ex", "Blaine's Charizard") or an
+  // illustrator. All pages, not just the first.
+  collectionRules: ['name', 'artist'],
+  async collectionCards({ type, value }, setsInfo) {
+    const field = type === 'artist' ? 'illustrator' : 'name';
+    const size = 250;
+    const out = [];
+    for (let page = 1; page <= 20; page++) {
+      const params = new URLSearchParams({ [field]: value, 'pagination:page': page, 'pagination:itemsPerPage': size });
+      const raw = await getJSON(`${API}/cards?${params}`, TTL.search);
+      out.push(...raw.filter((c) => !isPocket(c, setsInfo.pocketIds)).map(toCard));
+      if (raw.length < size) break;
+    }
+    return out;
+  },
+
   matchProducts: (rows, card) => matchByNumberAndName(rows, card.number, card.name),
 
   numberLabel(card, setsInfo) {
