@@ -76,10 +76,9 @@ function migrateItem(c) {
 }
 
 // ---------- Routing ----------
-// Real paths (/search) rather than hash routes. GitHub Pages serves unknown paths
-// from 404.html, which the build makes a copy of index.html, so deep links and
-// refreshes load the app.
-const BASE = import.meta.env.BASE_URL; // e.g. "/binderwish/"
+// Real paths (/search) rather than hash routes. Cloudflare Pages serves the app
+// for any path, so deep links and refreshes load it.
+const BASE = import.meta.env.BASE_URL; // "/"
 
 function routeUrl(view, { game, set, q } = {}) {
   if (view === 'privacy') return `${BASE}privacy`;

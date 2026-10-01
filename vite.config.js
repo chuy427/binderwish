@@ -6,7 +6,7 @@ import react from '@vitejs/plugin-react';
 // Unique per build. Used to fetch fresh catalog data after each deploy and to
 // let open pages notice a newer deploy (see src/lib/freshness.js).
 const BUILD_ID = String(Date.now());
-const BASE = process.env.BASE_PATH || '/binderwish/';
+const BASE = process.env.BASE_PATH || '/';
 let outDir = 'dist'; // resolved build.outDir (the Cloudflare build uses its own)
 
 export default defineConfig({
@@ -39,10 +39,9 @@ export default defineConfig({
     },
   ],
   define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
-  // Absolute base path so deep links like /binderwish/search load assets correctly.
-  // GitHub Pages project site: /binderwish/. BASE_PATH=/ for binderwish.com
-  // (Cloudflare Pages — see .github/workflows/deploy.yml), i.e. serving from the
-  // root of a custom domain.
+  // Absolute base path so deep links like /sets/me05 load assets correctly. The
+  // site is served from the root of binderwish.com; set BASE_PATH to serve it
+  // from a sub-path instead.
   base: BASE,
   server: { port: 5174, strictPort: true },
 });

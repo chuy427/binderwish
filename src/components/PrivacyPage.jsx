@@ -69,7 +69,7 @@ export default function PrivacyPage() {
       <H>Services your browser connects to</H>
       <P>Using BinderWish means your browser loads content from these services, which can see your IP address and browser details, like any website:</P>
       <Box component="ul" sx={{ color: 'text.secondary', mt: 0, pl: 3, '& li': { mb: 1 } }}>
-        <li><b>Cloudflare</b> hosts the site at binderwish.com (<Link href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">Cloudflare’s privacy policy</Link>), and <b>GitHub Pages</b> serves our older address, chuy427.github.io/binderwish (<Link href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement" target="_blank" rel="noopener">GitHub’s privacy statement</Link>).</li>
+        <li><b>Cloudflare</b> hosts the site (<Link href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">Cloudflare’s privacy policy</Link>).</li>
         <li><b>TCGdex</b> (Pokémon) and <b>Lorcast</b> (Lorcana) provide card lists, search and images. Your searches are sent to them to get results.</li>
         <li><b>TCGPlayer</b>: its image servers supply One Piece card images, and you visit TCGPlayer itself when you open a card link or scan a placeholder’s QR code (<Link href="https://www.tcgplayer.com/privacy-policy" target="_blank" rel="noopener">TCGPlayer’s privacy policy</Link>).</li>
         <li><b>Supabase</b>, only if you sign in, to store and sync your account.</li>

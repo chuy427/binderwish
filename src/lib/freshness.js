@@ -1,5 +1,5 @@
-// GitHub Pages lets browsers reuse the page for a while after a deploy, so an
-// open or cached page can run old code. On load, compare this page's build with
+// Browsers (and the offline service worker) can reuse the page for a while after
+// a deploy, so an open or cached page can run old code. On load, compare this page's build with
 // dist/version.json (fetched uncached) and reload once if a newer one is live.
 const FLAG = 'binderwish.reloadedFor';
 

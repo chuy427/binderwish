@@ -1,4 +1,4 @@
-name: Deploy (binderwish.com + GitHub Pages)
+name: Deploy binderwish.com
 
 on:
   push:
@@ -11,19 +11,17 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: pages
+  group: deploy
   cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      # binderwish.com is hosted on Cloudflare Pages. Add both as repository secrets
-      # (Settings → Secrets and variables → Actions); until then that deploy is skipped.
+      # binderwish.com is hosted on Cloudflare Pages; both are repository secrets
+      # (Settings → Secrets and variables → Actions).
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
@@ -34,6 +32,7 @@ jobs:
           cache: npm
       - run: npm ci
       # `prebuild` runs scripts/sync-tcgplayer.mjs to refresh the TCGPlayer catalog.
+      # No 404.html on purpose: Cloudflare Pages then serves the app for every path.
       - run: npm run build
         env:
           # Form endpoint for the "Get them printed" waitlist (Settings → Secrets and
@@ -41,32 +40,8 @@ jobs:
           VITE_WAITLIST_ENDPOINT: ${{ vars.WAITLIST_ENDPOINT }}
           # Set the ACCOUNTS repo variable to "on" to show sign-in (needs custom SMTP in Supabase).
           VITE_ACCOUNTS: ${{ vars.ACCOUNTS }}
-      - uses: actions/configure-pages@v6
-      - uses: actions/upload-pages-artifact@v5
-        with:
-          path: dist
-
-      # binderwish.com: the same code built for the domain root (no 404.html, so
-      # Cloudflare Pages serves the app for every route), reusing the catalog above.
-      - name: Build for binderwish.com
-        if: env.CLOUDFLARE_API_TOKEN != ''
-        run: npx vite build --outDir dist-cf --emptyOutDir
-        env:
-          BASE_PATH: /
-          VITE_WAITLIST_ENDPOINT: ${{ vars.WAITLIST_ENDPOINT }}
-          VITE_ACCOUNTS: ${{ vars.ACCOUNTS }}
       - name: Deploy to Cloudflare Pages
         if: env.CLOUDFLARE_API_TOKEN != ''
         run: |
           npx --yes wrangler@4 pages project create binderwish --production-branch=main || true
-          npx --yes wrangler@4 pages deploy dist-cf --project-name=binderwish --branch=main --commit-dirty=true
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v5
+          npx --yes wrangler@4 pages deploy dist --project-name=binderwish --branch=main --commit-dirty=true

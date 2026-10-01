@@ -59,15 +59,14 @@ npm run build            # refreshes the catalog, then builds to dist/
 
 ## Deployment
 
-GitHub Pages via `.github/workflows/deploy.yml`, on every push to `main` and
-daily at 21:30 UTC (after tcgcsv's daily refresh) so new sets and prices stay current.
-The workflow can also be run manually from the Actions tab.
+https://binderwish.com, on Cloudflare Pages, via `.github/workflows/deploy.yml`:
+on every push to `main` and daily at 21:30 UTC (after tcgcsv's daily refresh) so
+new sets and prices stay current. The workflow can also be run manually from the
+Actions tab. It needs the repository secrets `CLOUDFLARE_API_TOKEN` (Cloudflare
+Pages → Edit) and `CLOUDFLARE_ACCOUNT_ID`.
 
-Routes: `/binderwish/` is the home page, `/binderwish/search?game=<game>&set=<id>`
-(or `&q=<name>`; `game` defaults to Pokémon) is the collecting tool. GitHub Pages only serves real files, so the build copies
-`index.html` to `404.html` — unknown paths like `/search` then load the app.
-Assets use an absolute base (`/binderwish/`, see `vite.config.js`); build with
-`BASE_PATH=/` when serving from the root of a custom domain.
+Cloudflare Pages serves the app for every path (there's no `404.html`), so routes
+like `/search`, `/sets/<id>` and `/need` load directly.
 
 Note: GitHub disables scheduled workflows in a public repo after 60 days with
 no commits; re-enable it from the Actions tab if that happens.

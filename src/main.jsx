@@ -14,6 +14,13 @@ import theme from './theme';
 import App from './App';
 import { reloadIfOutdated } from './lib/freshness';
 
+// One address: www and the Cloudflare Pages address forward to binderwish.com, so
+// saved sets (kept per address by the browser) never split across them.
+const CANONICAL_HOST = 'binderwish.com';
+if (import.meta.env.PROD && ['www.binderwish.com', 'binderwish.pages.dev'].includes(location.hostname)) {
+  location.replace(`https://${CANONICAL_HOST}${location.pathname}${location.search}${location.hash}`);
+}
+
 reloadIfOutdated();
 
 // Offline support (see scripts/sw-template.js) — production builds only, so the
