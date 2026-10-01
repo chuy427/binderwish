@@ -10,6 +10,21 @@ const KEY = import.meta.env.VITE_SUPABASE_KEY || 'sb_publishable_d9GuSWBWrka2KDN
 // the ACCOUNTS repo variable is "on" (it needs working sign-in email first).
 export const ACCOUNTS_ENABLED = import.meta.env.DEV || import.meta.env.VITE_ACCOUNTS === 'on';
 
+// A used or expired sign-in link comes back as "#error=…&error_code=otp_expired".
+// Note it (before the client reads the URL) and tidy the address bar.
+let linkError = null;
+if (typeof location !== 'undefined' && /[#&]error(_code)?=/.test(location.hash)) {
+  const p = new URLSearchParams(location.hash.slice(1));
+  linkError = p.get('error_code') || p.get('error') || 'invalid';
+  history.replaceState(history.state, '', `${location.pathname}${location.search}`);
+}
+// Returns the failed-link reason once (then forgets it).
+export function takeLinkError() {
+  const e = linkError;
+  linkError = null;
+  return e;
+}
+
 export const supabase = createClient(URL, KEY, {
   // Implicit flow: the emailed link works even when it opens in a different
   // browser than the one that asked for it (e.g. a mail app's browser).
@@ -22,6 +37,15 @@ export async function sendSignInLink(email) {
     options: { emailRedirectTo: `${location.origin}${location.pathname}${location.search}` },
   });
   if (error) throw new Error(friendlyError(error));
+}
+
+// The 6-digit code from the same email — works in any browser, wherever the link opens.
+export async function verifyCode(email, code) {
+  const { error } = await supabase.auth.verifyOtp({ email, token: code.replace(/\s/g, ''), type: 'email' });
+  if (error) {
+    if (/expired|invalid/i.test(error.message)) throw new Error('That code is wrong or has expired — check the latest email, or send a new one.');
+    throw new Error(friendlyError(error));
+  }
 }
 
 export const signOut = () => supabase.auth.signOut({ scope: 'local' });

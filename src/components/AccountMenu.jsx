@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Alert, Avatar, Badge, Box, Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle,
   Divider, IconButton, ListItemIcon, Menu, MenuItem, Stack, TextField, Tooltip, Typography,
@@ -10,7 +10,7 @@ import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import CloudDoneIcon from '@mui/icons-material/CloudDone';
 import CloudSyncIcon from '@mui/icons-material/CloudSync';
 import CloudOffIcon from '@mui/icons-material/CloudOff';
-import { deleteAccount, sendSignInLink, signOut } from '../lib/cloud';
+import { deleteAccount, sendSignInLink, signOut, takeLinkError, verifyCode } from '../lib/cloud';
 
 const STATUS = {
   loading: { icon: <CloudSyncIcon fontSize="small" />, text: 'Loading your collection…', color: 'text.secondary' },
@@ -23,6 +23,12 @@ const STATUS = {
 export default function AccountMenu({ sync, onPrivacy }) {
   const { user, status, retry } = sync;
   const [signInOpen, setSignInOpen] = useState(false);
+  // Arrived from a sign-in link that was already used or has expired: say so.
+  const [linkProblem, setLinkProblem] = useState(null);
+  useEffect(() => {
+    const e = takeLinkError();
+    if (e) { setLinkProblem(e); setSignInOpen(true); }
+  }, []);
   const [anchor, setAnchor] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -34,7 +40,8 @@ export default function AccountMenu({ sync, onPrivacy }) {
         <IconButton aria-label="Sign in" onClick={() => setSignInOpen(true)} sx={{ display: { xs: 'inline-flex', sm: 'none' } }}>
           <PersonOutlineIcon />
         </IconButton>
-        <SignInDialog open={signInOpen} onClose={() => setSignInOpen(false)} onPrivacy={onPrivacy} />
+        <SignInDialog open={signInOpen} linkProblem={linkProblem} onPrivacy={onPrivacy}
+          onClose={() => { setSignInOpen(false); setLinkProblem(null); }} />
       </>
     );
   }
@@ -75,47 +82,73 @@ export default function AccountMenu({ sync, onPrivacy }) {
   );
 }
 
-function SignInDialog({ open, onClose, onPrivacy }) {
+function SignInDialog({ open, onClose, onPrivacy, linkProblem }) {
   const [email, setEmail] = useState('');
-  const [state, setState] = useState('idle'); // idle | sending | sent
+  const [state, setState] = useState('idle'); // idle | sending | sent | verifying
+  const [code, setCode] = useState('');
   const [error, setError] = useState(null);
   const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const codeOk = /^\d{6,10}$/.test(code.replace(/\s/g, ''));
 
-  const close = () => { onClose(); setTimeout(() => { setState('idle'); setError(null); }, 200); };
-  async function submit(e) {
-    e.preventDefault();
+  const close = () => { onClose(); setTimeout(() => { setState('idle'); setError(null); setCode(''); }, 200); };
+  async function send(e) {
+    e?.preventDefault();
     if (!valid || state === 'sending') return;
-    setState('sending'); setError(null);
+    setState('sending'); setError(null); setCode('');
     try { await sendSignInLink(email.trim()); setState('sent'); }
     catch (err) { setError(err.message); setState('idle'); }
+  }
+  async function verify(e) {
+    e.preventDefault();
+    if (!codeOk || state === 'verifying') return;
+    setState('verifying'); setError(null);
+    try { await verifyCode(email.trim(), code); close(); }
+    catch (err) { setError(err.message); setState('sent'); }
   }
 
   return (
     <Dialog open={open} onClose={close} maxWidth="xs" fullWidth>
-      {state === 'sent' ? (
-        <>
+      {state === 'sent' || state === 'verifying' ? (
+        <Box component="form" onSubmit={verify} noValidate>
           <DialogContent>
-            <Stack spacing={2} sx={{ alignItems: 'center', textAlign: 'center', py: 2 }}>
-              <MarkEmailReadIcon color="primary" sx={{ fontSize: 48 }} />
+            <Stack spacing={1.5} sx={{ alignItems: 'center', textAlign: 'center', pt: 1 }}>
+              <MarkEmailReadIcon color="primary" sx={{ fontSize: 44 }} />
               <Typography variant="h6">Check your email</Typography>
               <Typography color="text.secondary">
-                We sent a sign-in link to <b>{email.trim()}</b>. Open it on this device to sign in — it may take a minute
-                to arrive, and could land in spam.
+                We sent a sign-in email to <b>{email.trim()}</b>. Tap its link, <b>or type the code from it here</b> —
+                the code works in any browser, even if the link opens somewhere else.
               </Typography>
             </Stack>
+            <TextField autoFocus fullWidth label="Code from the email" value={code} sx={{ mt: 2.5 }}
+              onChange={(e) => setCode(e.target.value.replace(/[^\d\s]/g, '').slice(0, 12))}
+              slotProps={{ htmlInput: { inputMode: 'numeric', autoComplete: 'one-time-code', style: { letterSpacing: '.3em', fontSize: 22, textAlign: 'center' } } }} />
+            {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.5, textAlign: 'center' }}>
+              It can take a minute to arrive, and could land in spam.
+            </Typography>
           </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setState('idle')}>Use a different email</Button>
-            <Button variant="contained" onClick={close}>Done</Button>
+          <DialogActions sx={{ flexWrap: 'wrap', gap: 1 }}>
+            <Button onClick={() => { setState('idle'); setError(null); }} sx={{ mr: 'auto' }}>Different email</Button>
+            <Button onClick={send}>Send again</Button>
+            <Button type="submit" variant="contained" disabled={!codeOk || state === 'verifying'}
+              startIcon={state === 'verifying' ? <CircularProgress size={16} color="inherit" /> : null}>
+              {state === 'verifying' ? 'Signing in…' : 'Sign in'}
+            </Button>
           </DialogActions>
-        </>
+        </Box>
       ) : (
-        <Box component="form" onSubmit={submit} noValidate>
+        <Box component="form" onSubmit={send} noValidate>
           <DialogTitle>Save your progress</DialogTitle>
           <DialogContent>
+            {linkProblem && (
+              <Alert severity="info" sx={{ mb: 2 }}>
+                That sign-in link has already been used or has expired — each link works once. Enter your email for a
+                new one (it comes with a code you can type in any browser).
+              </Alert>
+            )}
             <Typography color="text.secondary" sx={{ mb: 2.5 }}>
               Sign in to keep your checklist, print sheet and settings in your account and pick up on any device.
-              No password — we’ll email you a sign-in link. Anything you’ve already checked off here comes with you.
+              No password — we’ll email you a sign-in link and code. Anything you’ve already checked off here comes with you.
             </Typography>
             <TextField autoFocus fullWidth label="Email" type="email" autoComplete="email"
               value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -129,7 +162,7 @@ function SignInDialog({ open, onClose, onPrivacy }) {
             <Button onClick={close}>Cancel</Button>
             <Button type="submit" variant="contained" disabled={!valid || state === 'sending'}
               startIcon={state === 'sending' ? <CircularProgress size={16} color="inherit" /> : null}>
-              {state === 'sending' ? 'Sending…' : 'Email me a link'}
+              {state === 'sending' ? 'Sending…' : 'Email me a code'}
             </Button>
           </DialogActions>
         </Box>
