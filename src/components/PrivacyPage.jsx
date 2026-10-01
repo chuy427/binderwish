@@ -1,8 +1,8 @@
 import { Box, Container, Link, Typography } from '@mui/material';
 
 // Where people send access/removal requests. Set before publishing the waitlist.
-export const CONTACT_EMAIL = 'chuy427jg@gmail.com';
-const EFFECTIVE_DATE = 'September 30, 2026';
+export const CONTACT_EMAIL = 'hello@binderwish.com'; // forwarded to the owner's inbox (Cloudflare Email Routing)
+const EFFECTIVE_DATE = 'October 1, 2026';
 
 function Contact() {
   return CONTACT_EMAIL
