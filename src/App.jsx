@@ -197,6 +197,19 @@ export default function App() {
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ queue, options })); } catch {}
   }, [queue, options]);
+  // Another tab of BinderWish changed the collection: take its version, so an
+  // older tab never saves stale data over newer changes.
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key !== STORAGE_KEY && e.key !== OWNED_KEY) return;
+      const s = loadSaved();
+      setOwned(s.owned);
+      setQueue(s.queue);
+      setOptions(s.options);
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
   useEffect(() => {
     try { localStorage.setItem(OWNED_KEY, JSON.stringify([...owned])); } catch {}
   }, [owned]);

@@ -41,7 +41,19 @@ function friendlyError(error) {
 export const fetchCollection = (userId) =>
   supabase.from('collections').select('owned, queue, options, updated_at').eq('user_id', userId).maybeSingle();
 
-export const saveCollection = (userId, { owned, queue, options }) =>
-  supabase.from('collections')
-    .upsert({ user_id: userId, owned, queue, options, updated_at: new Date().toISOString() })
-    .select('updated_at').single();
+// Conditional save: writes only if the account still has the version we last saw
+// (`expectedAt`, or no row yet when null). Returns { at } on success, or
+// { conflict: true } when another device saved first — the caller merges and retries.
+export async function saveCollection(userId, { owned, queue, options }, expectedAt) {
+  const row = { owned, queue, options, updated_at: new Date().toISOString() };
+  if (expectedAt == null) {
+    const { data, error } = await supabase.from('collections').insert({ user_id: userId, ...row }).select('updated_at').single();
+    if (error?.code === '23505') return { conflict: true }; // a row appeared meanwhile
+    if (error) throw error;
+    return { at: data.updated_at };
+  }
+  const { data, error } = await supabase.from('collections').update(row)
+    .eq('user_id', userId).eq('updated_at', expectedAt).select('updated_at');
+  if (error) throw error;
+  return data.length ? { at: data[0].updated_at } : { conflict: true };
+}

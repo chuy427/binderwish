@@ -1,34 +1,50 @@
 import { useEffect, useRef, useState } from 'react';
 import { ACCOUNTS_ENABLED, fetchCollection, saveCollection, supabase } from './cloud';
-import { mergeBackup } from './backup';
+import { freshBase, mergeState } from './merge';
 
-// Which account this browser's saved collection belongs to. When it matches the
-// signed-in user, the account is the source of truth; when it doesn't (a fresh
-// sign-in), whatever was collected here as a guest is merged into the account.
-const LINKED_KEY = 'binderwish.linkedAccount';
-const SAVE_DELAY = 800;
-
-const toPlain = ({ owned, queue, options }) => ({ owned: [...owned].sort(), queue, options });
-const fingerprint = (state) => JSON.stringify(toPlain(state));
-const readLinked = () => { try { return localStorage.getItem(LINKED_KEY); } catch { return null; } };
-const writeLinked = (id) => { try { if (id) localStorage.setItem(LINKED_KEY, id); else localStorage.removeItem(LINKED_KEY); } catch {} };
-
-// Keeps { owned, queue, options } in sync with the signed-in account.
+// Keeps { owned, queue, options } in sync with the signed-in account — merging,
+// never overwriting. This device remembers the version it last synced (the
+// "base", saved on the device so offline edits survive a reload). Each sync
+// fetches the account's version and, if it moved on, applies this device's
+// changes since the base on top of it (see merge.js). Saves are conditional on
+// the account still being at the version just read, so two devices saving at
+// once merge and retry instead of overwriting each other.
+//
 // `apply(next)` replaces the app's state with { owned: Set, queue, options }.
 // status: 'signed-out' | 'loading' | 'saving' | 'saved' | 'error'
+const BASE_KEY = 'binderwish.syncBase';
+const LEGACY_LINKED_KEY = 'binderwish.linkedAccount';
+const SAVE_DELAY = 800;
+const MAX_TRIES = 4;
+
+const plain = ({ owned, queue, options }) => ({ owned: [...owned].sort(), queue, options });
+const fp = (s) => JSON.stringify(s);
+const toApp = (s) => ({ ...s, owned: new Set(s.owned) });
+
+function readBase(userId) {
+  try {
+    const b = JSON.parse(localStorage.getItem(BASE_KEY));
+    return b?.userId === userId && b.state ? b : null;
+  } catch { return null; }
+}
+function writeBase(b) {
+  try { if (b) localStorage.setItem(BASE_KEY, JSON.stringify(b)); else localStorage.removeItem(BASE_KEY); } catch {}
+}
+
 export function useCloudSync({ owned, queue, options, apply, onSignedOut, onLoaded }) {
   const [user, setUser] = useState(null);
   const [status, setStatus] = useState('signed-out');
-  const [loadTick, setLoadTick] = useState(0); // bumped to retry a failed load
-  const [saveTick, setSaveTick] = useState(0); // bumped to retry a failed save
   const userId = user?.id || null;
-  const loadedFor = useRef(null);     // user id whose collection has been loaded
-  const lastSynced = useRef(null);    // fingerprint of what the account holds
-  const remoteAt = useRef(null);      // updated_at of the account's copy
-  const latest = useRef({ owned, queue, options });
-  latest.current = { owned, queue, options };
+  const userIdRef = useRef(null);
+  userIdRef.current = userId;
+  const latest = useRef(null);
+  latest.current = plain({ owned, queue, options });
   const cb = useRef({ apply, onSignedOut, onLoaded });
   cb.current = { apply, onSignedOut, onLoaded };
+  const base = useRef(null);       // { userId, at, state } — last synced version
+  const ready = useRef(false);     // first sync for this user finished
+  const running = useRef(null);    // the sync in progress (one at a time)
+  const again = useRef(false);     // another sync was asked for while one ran
 
   // Session (restored from storage, or arriving from an emailed link).
   useEffect(() => {
@@ -37,98 +53,115 @@ export function useCloudSync({ owned, queue, options, apply, onSignedOut, onLoad
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
       setUser((u) => (u?.id === session?.user?.id ? u : session?.user ?? null));
       if (event === 'SIGNED_OUT') {
-        writeLinked(null);
+        writeBase(null);
+        try { localStorage.removeItem(LEGACY_LINKED_KEY); } catch {}
         cb.current.onSignedOut?.();
       }
     });
     return () => data.subscription.unsubscribe();
   }, []);
 
-  // Load (and on a fresh sign-in, merge) the account's collection.
-  const load = async (id, { fresh }) => {
-    const { data, error } = await fetchCollection(id);
-    if (error) throw error;
-    const local = latest.current;
-    let next, needsSave;
-    if (!data) {
-      next = local; needsSave = true;                       // new account: start from this browser
-    } else if (fresh) {
-      const merged = mergeBackup({ owned: [...local.owned], queue: local.queue }, { owned: data.owned || [], queue: data.queue || [] });
-      const mySets = [...(local.options.mySets || []), ...(data.options?.mySets || [])];
-      const remoteCustom = data.options?.customSets || [];
-      const customSets = [...remoteCustom, ...(local.options.customSets || []).filter((c) => !remoteCustom.some((r) => r.id === c.id))];
-      next = { owned: merged.owned, queue: merged.queue, options: { ...local.options, ...data.options, mySets, customSets } };
-      needsSave = true;
-    } else {
-      next = { owned: new Set(data.owned || []), queue: data.queue || [], options: { ...local.options, ...data.options } };
-      needsSave = false;
+  // One sync: read the account, merge if it moved on, save if we have changes.
+  // Returns whether this was the device's first sync with this account.
+  async function syncOnce(id) {
+    for (let tries = 0; tries < MAX_TRIES; tries++) {
+      const { data: remote, error } = await fetchCollection(id);
+      if (error) throw error;
+      if (id !== userIdRef.current) return false;
+      const local = latest.current;
+      // Read from storage, not memory: another tab may have synced since.
+      let b = readBase(id) || (base.current?.userId === id ? base.current : null);
+      const first = !b;
+      if (!b) b = { userId: id, at: null, state: freshBase(local) };
+
+      let next = local;
+      if (remote && remote.updated_at !== b.at) {
+        // The account changed since we last synced (or we never have): combine.
+        const rs = { owned: remote.owned || [], queue: remote.queue || [], options: remote.options || {} };
+        next = mergeState(b.state, local, rs);
+        if (fp(next) === fp(rs)) {
+          // Nothing of ours to add — just take the account's version.
+          base.current = { userId: id, at: remote.updated_at, state: rs };
+          writeBase(base.current);
+          if (fp(rs) !== fp(latest.current)) cb.current.apply(toApp(rs));
+          return first;
+        }
+      } else if (remote && fp(local) === fp(b.state)) {
+        return first; // already in sync
+      }
+
+      const res = await saveCollection(id, next, remote ? remote.updated_at : null);
+      if (res.conflict) continue; // another device saved first — read again and re-merge
+      base.current = { userId: id, at: res.at, state: next };
+      writeBase(base.current);
+      if (fp(next) !== fp(latest.current)) cb.current.apply(toApp(next));
+      return first;
     }
-    remoteAt.current = data?.updated_at ?? null;
-    lastSynced.current = needsSave ? null : fingerprint(next);
-    return next;
-  };
+    throw new Error('Too many conflicting saves');
+  }
 
+  // Run syncs one at a time; asking during a run schedules one more after it.
+  function requestSync() {
+    const id = userIdRef.current;
+    if (!id) return;
+    if (running.current) { again.current = true; return; }
+    setStatus((s) => (s === 'loading' ? s : 'saving'));
+    running.current = (async () => {
+      try {
+        do {
+          again.current = false;
+          const first = await syncOnce(id);
+          if (!ready.current && id === userIdRef.current) {
+            ready.current = true;
+            try { localStorage.removeItem(LEGACY_LINKED_KEY); } catch {}
+            cb.current.onLoaded?.({ fresh: first });
+          }
+        } while (again.current && id === userIdRef.current);
+        if (id === userIdRef.current) {
+          const dirty = fp(latest.current) !== fp(base.current?.state);
+          setStatus(dirty ? 'saving' : 'saved');
+          if (dirty) setTimeout(requestSync, SAVE_DELAY);
+        }
+      } catch {
+        if (id === userIdRef.current) setStatus('error');
+      } finally {
+        running.current = null;
+      }
+    })();
+  }
+
+  // Signing in / switching accounts: first sync (also picks up offline edits).
   useEffect(() => {
-    loadedFor.current = null;
+    ready.current = false;
+    base.current = null;
     if (!userId) { setStatus('signed-out'); return; }
-    let cancelled = false;
     setStatus('loading');
-    const fresh = readLinked() !== userId;
-    load(userId, { fresh })
-      .then((next) => {
-        if (cancelled) return;
-        writeLinked(userId);
-        loadedFor.current = userId;
-        cb.current.apply(next);
-        cb.current.onLoaded?.({ fresh });
-        setStatus(lastSynced.current ? 'saved' : 'saving');
-      })
-      .catch(() => { if (!cancelled) setStatus('error'); });
-    return () => { cancelled = true; };
-  }, [userId, loadTick]);
+    requestSync();
+  }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Save changes to the account, shortly after they happen.
-  const saveTimer = useRef(null);
+  // Local changes: sync shortly after they happen.
+  const timer = useRef(null);
   useEffect(() => {
-    if (!userId || loadedFor.current !== userId) return;
-    const fp = fingerprint({ owned, queue, options });
-    if (fp === lastSynced.current) return;
+    if (!userId || !ready.current) return undefined;
+    if (fp(latest.current) === fp(base.current?.state)) return undefined;
     setStatus('saving');
-    clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(async () => {
-      saveTimer.current = null;
-      const { data, error } = await saveCollection(userId, toPlain({ owned, queue, options }));
-      if (loadedFor.current !== userId) return;
-      if (error) { setStatus('error'); return; }
-      lastSynced.current = fp;
-      remoteAt.current = data.updated_at;
-      setStatus('saved');
-    }, SAVE_DELAY);
-    return () => clearTimeout(saveTimer.current);
-  }, [userId, owned, queue, options, saveTick]);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(requestSync, SAVE_DELAY);
+    return () => clearTimeout(timer.current);
+  }, [userId, owned, queue, options]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Coming back to the tab: pick up changes made on another device.
+  // Back to the tab, or back online: catch up with other devices.
   useEffect(() => {
-    if (!userId) return;
-    const onVisible = async () => {
-      if (document.visibilityState !== 'visible' || loadedFor.current !== userId || saveTimer.current) return;
-      const { data } = await fetchCollection(userId);
-      if (!data || data.updated_at === remoteAt.current || saveTimer.current || loadedFor.current !== userId) return;
-      const next = { owned: new Set(data.owned || []), queue: data.queue || [], options: { ...latest.current.options, ...data.options } };
-      remoteAt.current = data.updated_at;
-      lastSynced.current = fingerprint(next);
-      cb.current.apply(next);
-    };
+    if (!userId) return undefined;
+    const onVisible = () => { if (document.visibilityState === 'visible' && ready.current) requestSync(); };
+    const onOnline = () => { if (ready.current) requestSync(); };
     document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
-  }, [userId]);
+    window.addEventListener('online', onOnline);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('online', onOnline);
+    };
+  }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Retry after an error (e.g. a dropped connection).
-  const retry = () => {
-    if (!userId) return;
-    if (loadedFor.current === userId) { lastSynced.current = null; setSaveTick((t) => t + 1); }
-    else setLoadTick((t) => t + 1);
-  };
-
-  return { user, status, retry };
+  return { user, status, retry: requestSync };
 }
