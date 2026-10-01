@@ -1,4 +1,4 @@
-name: Deploy to GitHub Pages
+name: Deploy (binderwish.com + GitHub Pages)
 
 on:
   push:
@@ -21,6 +21,11 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # binderwish.com is hosted on Cloudflare Pages. Add both as repository secrets
+      # (Settings → Secrets and variables → Actions); until then that deploy is skipped.
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -40,6 +45,21 @@ jobs:
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
+
+      # binderwish.com: the same code built for the domain root (no 404.html, so
+      # Cloudflare Pages serves the app for every route), reusing the catalog above.
+      - name: Build for binderwish.com
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        run: npx vite build --outDir dist-cf --emptyOutDir
+        env:
+          BASE_PATH: /
+          VITE_WAITLIST_ENDPOINT: ${{ vars.WAITLIST_ENDPOINT }}
+          VITE_ACCOUNTS: ${{ vars.ACCOUNTS }}
+      - name: Deploy to Cloudflare Pages
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        run: |
+          npx --yes wrangler@4 pages project create binderwish --production-branch=main || true
+          npx --yes wrangler@4 pages deploy dist-cf --project-name=binderwish --branch=main --commit-dirty=true
 
   deploy:
     needs: build

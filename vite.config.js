@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -6,6 +7,7 @@ import react from '@vitejs/plugin-react';
 // let open pages notice a newer deploy (see src/lib/freshness.js).
 const BUILD_ID = String(Date.now());
 const BASE = process.env.BASE_PATH || '/binderwish/';
+let outDir = 'dist'; // resolved build.outDir (the Cloudflare build uses its own)
 
 export default defineConfig({
   plugins: [
@@ -14,7 +16,8 @@ export default defineConfig({
       // dist/version.json — what's currently deployed.
       name: 'binderwish-version-file',
       apply: 'build',
-      closeBundle() { writeFileSync('dist/version.json', JSON.stringify({ build: BUILD_ID })); },
+      configResolved(config) { outDir = path.resolve(config.root, config.build.outDir); },
+      closeBundle() { writeFileSync(path.join(outDir, 'version.json'), JSON.stringify({ build: BUILD_ID })); },
     },
     {
       // dist/sw.js — the offline service worker (scripts/sw-template.js), with this
@@ -31,13 +34,14 @@ export default defineConfig({
           .replace("const BASE = '__BASE__';", `const BASE = ${JSON.stringify(BASE)};`)
           .replace('const PRECACHE = __PRECACHE__;', `const PRECACHE = ${JSON.stringify(precache)};`);
         if (sw.includes("'__") || sw.includes('= __')) throw new Error('sw-template.js placeholders not filled');
-        writeFileSync('dist/sw.js', sw);
+        writeFileSync(path.join(outDir, 'sw.js'), sw);
       },
     },
   ],
   define: { __BUILD_ID__: JSON.stringify(BUILD_ID) },
   // Absolute base path so deep links like /binderwish/search load assets correctly.
-  // GitHub Pages project site: /binderwish/. Set BASE_PATH=/ when serving from the
+  // GitHub Pages project site: /binderwish/. BASE_PATH=/ for binderwish.com
+  // (Cloudflare Pages — see .github/workflows/deploy.yml), i.e. serving from the
   // root of a custom domain.
   base: BASE,
   server: { port: 5174, strictPort: true },
