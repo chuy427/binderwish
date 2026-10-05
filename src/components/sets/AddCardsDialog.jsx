@@ -10,7 +10,7 @@ import { setSlots, slotsForSearch } from '../../catalog';
 
 // Hand-pick cards for a custom set: search any card by name, or open a set and
 // browse its cards; tap to add / remove.
-export default function AddCardsDialog({ open, onClose, game, setsInfo, pickedKeys, owned, onTogglePick }) {
+export default function AddCardsDialog({ open, onClose, game, setsInfo, pickedKeys, owned, onTogglePick, onSetMany }) {
   const phone = useMediaQuery('(max-width:600px)');
   const [q, setQ] = useState('');
   const [slots, setSlotsState] = useState([]);
@@ -41,6 +41,8 @@ export default function AddCardsDialog({ open, onClose, game, setsInfo, pickedKe
   const setShown = useMemo(() => (browse || []).filter((sl) => !needle || sl.name.toLowerCase().includes(needle)
     || String(sl.numberLabel || sl.number).toLowerCase().includes(needle)), [browse, needle]);
   const shown = mode === 'set' ? setShown : slots;
+  // Select / deselect everything showing (the whole set, or what the filter left).
+  const allIn = shown.length > 0 && shown.every((s) => pickedKeys.has(s.key));
 
   async function run(nextPage = 1) {
     const query = (nextPage === 1 ? q : searched).trim();
@@ -91,7 +93,8 @@ export default function AddCardsDialog({ open, onClose, game, setsInfo, pickedKe
             )}
           </Stack>
         )}
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        <Stack direction="row" spacing={1.5} sx={{ mb: 2, alignItems: 'center', justifyContent: 'space-between' }}>
+        <Typography variant="body2" color="text.secondary">
           {mode === 'set'
             ? (loading ? 'Loading the set…'
               : set ? (browse?.length ? `${setShown.length} card${setShown.length === 1 ? '' : 's'} — tap one to add it to your set, tap again to take it out.` : 'No cards found in this set.')
@@ -100,6 +103,12 @@ export default function AddCardsDialog({ open, onClose, game, setsInfo, pickedKe
             : searched ? (slots.length ? 'Tap a card to add it to your set — tap again to take it out.' : 'No cards found. Try a shorter name.')
             : 'Find any card by name, from any set, and tap it to add it.'}
         </Typography>
+          {onSetMany && shown.length > 1 && !loading && (
+            <Button size="small" variant="outlined" sx={{ flexShrink: 0 }} onClick={() => onSetMany(shown, !allIn)}>
+              {allIn ? `Remove all ${shown.length}` : `Add all ${shown.length}`}
+            </Button>
+          )}
+        </Stack>
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
         <Box sx={gridSx}>
           {loading && (mode === 'set' || page === 1) ? <SlotSkeletons count={8} /> : shown.map((s) => (

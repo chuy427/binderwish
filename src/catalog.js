@@ -97,6 +97,11 @@ function productVariants(products, special = '') {
   return out;
 }
 
+// TCGPlayer's product photo — used when the card data has no art (e.g. TCGdex has
+// none for the Pokémon Trainer Gallery subsets).
+const TCGPLAYER_IMG = 'https://tcgplayer-cdn.tcgplayer.com/product';
+const tcgplayerImages = (id) => (id ? { small: `${TCGPLAYER_IMG}/${id}_200w.jpg`, large: `${TCGPLAYER_IMG}/${id}_in_1000x1000.jpg` } : null);
+
 function makeSlot(game, card, setsInfo, variant, order) {
   return {
     key: `${card.id}|${variant ? variant.variantId : 'card'}`,
@@ -107,7 +112,7 @@ function makeSlot(game, card, setsInfo, variant, order) {
     name: card.name,
     number: card.number,
     numberLabel: game.numberLabel(card, setsInfo),
-    images: card.images || null,
+    images: card.images || tcgplayerImages(variant?.tcgplayerId ?? card.tcgplayerId),
     tcgplayerId: variant?.tcgplayerId ?? card.tcgplayerId ?? null,
     printing: variant?.printing ?? null,
     variantLabel: variant?.label ?? null,

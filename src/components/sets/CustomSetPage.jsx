@@ -90,6 +90,23 @@ export default function CustomSetPage({
   const hide = (s) => onUpdate({ hidden: [...cs.hidden, s.key] });
   const unhide = (s) => onUpdate({ hidden: cs.hidden.filter((k) => k !== s.key) });
   const removePick = (s) => onUpdate({ picks: cs.picks.filter((p) => p.key !== s.key) });
+  // From the Add cards dialog: add or take out many cards at once (one update).
+  const setMany = (list, add) => {
+    let picks = [...cs.picks];
+    let hiddenList = [...cs.hidden];
+    const added = [];
+    for (const s of list) {
+      if (add && !inSetKeys.has(s.key)) {
+        if (hidden.has(s.key)) hiddenList = hiddenList.filter((k) => k !== s.key);
+        else { picks.push({ setId: s.setId, key: s.key }); added.push({ ...s, picked: true }); }
+      } else if (!add && inSetKeys.has(s.key)) {
+        if (pickKeys.has(s.key)) picks = picks.filter((p) => p.key !== s.key);
+        else hiddenList.push(s.key);
+      }
+    }
+    if (added.length) setExtra((e) => [...e, ...added]);
+    onUpdate({ picks, hidden: hiddenList });
+  };
   // From the Add cards dialog: add / take out a card.
   const togglePick = (s) => {
     if (inSetKeys.has(s.key)) {
@@ -191,7 +208,7 @@ export default function CustomSetPage({
       )}
 
       <AddCardsDialog open={adding} onClose={() => setAdding(false)} game={game} setsInfo={setsInfo}
-        pickedKeys={inSetKeys} owned={owned} onTogglePick={togglePick} />
+        pickedKeys={inSetKeys} owned={owned} onTogglePick={togglePick} onSetMany={setMany} />
       <CustomSetDialog open={editing} initial={cs} defaultGame={cs.game} onClose={() => setEditing(false)}
         onSave={(v) => { onUpdate({ name: v.name, names: v.names, artists: v.artists }); setEditing(false); }} />
       {curator && (
