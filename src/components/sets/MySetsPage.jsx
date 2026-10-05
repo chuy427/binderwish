@@ -10,6 +10,9 @@ import SetTile, { ProgressLine } from './SetTile';
 import { CustomSetArt } from './CustomSetPage';
 import CustomSetDialog from './CustomSetDialog';
 import { useCustomProgress, useSetProgress } from './useSetProgress';
+import PicksRow from '../picks/PicksRow';
+import { PickTile } from '../picks/PickParts';
+import { pickToCs } from '../../lib/picks';
 import { ruleSummary } from '../../lib/customSets';
 import { BinderLine } from './BinderInfo';
 import { GAME_LIST } from '../../games';
@@ -24,7 +27,7 @@ const newestFirst = (a, b) => (b.released || '').localeCompare(a.released || '')
 // with the sets you're collecting — and your progress in each — up top.
 export default function MySetsPage({
   game, onGameChange, setsInfo, mySets, customSets, owned, variants, setHref, onOpenSet, customHref, onOpenCustom, onCreateCustom,
-  wantHref, onOpenWant, getSetsInfo, onImport,
+  wantHref, onOpenWant, getSetsInfo, onImport, followedPicks = [], picksProps,
 }) {
   const [series, setSeries] = useState('all');
   const [q, setQ] = useState('');
@@ -35,6 +38,9 @@ export default function MySetsPage({
   const myCustomAll = customSets.filter((c) => c.game === game.id);
   const myCustom = myCustomAll.filter((c) => inBinder(c.binder));
   const customProgress = useCustomProgress(game, myCustom, setsInfo, variants, owned);
+  const myPicks = followedPicks.filter((p) => p.game === game.id);
+  const pickCs = useMemo(() => myPicks.map(pickToCs), [myPicks]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pickProgress = useCustomProgress(game, pickCs, setsInfo, variants, owned);
 
   const sets = useMemo(() => {
     const list = setsInfo.sets.slice();
@@ -102,8 +108,14 @@ export default function MySetsPage({
             </TextField>
           )}
         </Stack>
-        {collecting.length ? (
-          <Box sx={tileGrid}>{collecting.map(tile)}</Box>
+        {collecting.length || (binder === 'all' && myPicks.length) ? (
+          <Box sx={tileGrid}>
+            {collecting.map(tile)}
+            {binder === 'all' && myPicks.map((p) => (
+              <PickTile key={p.id} pick={p} href={picksProps.pickHref(p.slug)} onOpen={() => picksProps.onOpenPick(p.slug)}
+                progress={pickProgress.get(`pick:${p.slug}`)} />
+            ))}
+          </Box>
         ) : (
           <Box sx={{ p: 3, borderRadius: '18px', border: '1px dashed rgba(255,255,255,.14)', color: 'text.secondary' }}>
             {!setsInfo.loaded ? 'Loading…'
@@ -112,6 +124,8 @@ export default function MySetsPage({
           </Box>
         )}
       </Box>
+
+      <PicksRow game={game.id} {...picksProps} sx={{ mt: 5 }} />
 
       {/* Custom sets */}
       <Box sx={{ mt: 5 }}>

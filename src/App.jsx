@@ -9,6 +9,7 @@ import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import CloseIcon from '@mui/icons-material/Close';
 import { layoutParam, parseLayout } from './components/binder/layout';
 import AutoStoriesOutlinedIcon from '@mui/icons-material/AutoStoriesOutlined';
+import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import MenuIcon from '@mui/icons-material/Menu';
 import { cleanCustomSets, newCustomSetId } from './lib/customSets';
@@ -22,6 +23,7 @@ import { ACCOUNTS_ENABLED } from './lib/cloud';
 import { downloadBackup, mergeBackup } from './lib/backup';
 import { DEFAULT_GAME, GAMES, getGame } from './games';
 import { LogoMark, Wordmark } from './components/Logo';
+import { fetchCurator, fetchMyPicks, findPick, pickToCs, usePicks } from './lib/picks';
 
 // Pages load on demand, so the first visit downloads only what it shows.
 const HomePage = lazy(() => import('./components/HomePage'));
@@ -37,6 +39,8 @@ const SearchPanel = lazy(() => import('./components/SearchPanel'));
 const PrintSheetPanel = lazy(() => import('./components/PrintSheetPanel'));
 const BackupSection = lazy(() => import('./components/BackupSection'));
 const WaitlistDialog = lazy(() => import('./components/WaitlistDialog'));
+const PickPage = lazy(() => import('./components/picks/PickPage'));
+const PicksIndexPage = lazy(() => import('./components/picks/PicksIndexPage'));
 
 const PageLoading = () => (
   <Box sx={{ display: 'grid', placeItems: 'center', minHeight: '50vh' }}><CircularProgress /></Box>
@@ -53,6 +57,8 @@ const DEFAULT_OPTIONS = {
   mySets: [],
   // Custom sets (see lib/customSets.js).
   customSets: [],
+  // BinderWish picks being collected: [{ slug }] (the picks themselves load from the server).
+  followedPicks: [],
   // Virtual binder layout: pockets per page as columns × rows.
   binderLayout: { cols: 3, rows: 3 },
   // The last collection opened in the virtual binder: { game, set | custom, name }.
@@ -70,10 +76,14 @@ const cleanMySets = (list) => {
   }
   return [...out.values()];
 };
+const cleanFollowed = (list) => [...new Map((Array.isArray(list) ? list : [])
+  .filter((f) => f && typeof f.slug === 'string' && /^[a-z0-9-]{1,80}$/.test(f.slug))
+  .map((f) => [f.slug, { slug: f.slug }])).values()];
 const withDefaults = (o) => ({
   ...DEFAULT_OPTIONS, ...o,
   mySets: cleanMySets(o?.mySets),
   customSets: cleanCustomSets(o?.customSets, GAMES),
+  followedPicks: cleanFollowed(o?.followedPicks),
   binderLayout: parseLayout(o?.binderLayout && layoutParam(o.binderLayout)) || DEFAULT_OPTIONS.binderLayout,
 });
 // Parallel card-data lookups for cards the bundled catalog couldn't match.
@@ -102,8 +112,10 @@ function migrateItem(c) {
 // for any path, so deep links and refreshes load it.
 const BASE = import.meta.env.BASE_URL; // "/"
 
-function routeUrl(view, { game, set, q, custom, layout, page, card } = {}) {
+function routeUrl(view, { game, set, q, custom, pick, layout, page, card } = {}) {
   if (view === 'privacy') return `${BASE}privacy`;
+  if (view === 'picks') return `${BASE}picks`;
+  if (view === 'pick') return `${BASE}picks/${encodeURIComponent(set)}`;
   if (view === 'binderIndex') return `${BASE}binder${game && game !== DEFAULT_GAME ? `?game=${game}` : ''}`;
   if (view === 'binder') {
     const params = new URLSearchParams();
@@ -112,7 +124,8 @@ function routeUrl(view, { game, set, q, custom, layout, page, card } = {}) {
     if (page && page > 1) params.set('page', page);
     if (card) params.set('card', card);
     const qs = params.toString();
-    return `${BASE}binder/${custom ? `custom/${encodeURIComponent(custom)}` : encodeURIComponent(set)}${qs ? `?${qs}` : ''}`;
+    const where = pick ? `pick/${encodeURIComponent(pick)}` : custom ? `custom/${encodeURIComponent(custom)}` : encodeURIComponent(set);
+    return `${BASE}binder/${where}${qs ? `?${qs}` : ''}`;
   }
   const gameQs = game && game !== DEFAULT_GAME ? `?game=${game}` : '';
   if (view === 'sets') return `${BASE}sets${gameQs}`;
@@ -136,13 +149,17 @@ function readRoute() {
   const params = new URLSearchParams(location.search);
   const clean = path.replace(/\/$/, '');
   const binderCustom = clean.startsWith('binder/custom/') ? decodeURIComponent(clean.slice(14)) : null;
-  const binderSet = !binderCustom && clean.startsWith('binder/') ? decodeURIComponent(clean.slice(7)) : null;
-  if (binderCustom || binderSet) {
+  const binderPick = clean.startsWith('binder/pick/') ? decodeURIComponent(clean.slice(12)) : null;
+  const binderSet = !binderCustom && !binderPick && clean.startsWith('binder/') ? decodeURIComponent(clean.slice(7)) : null;
+  if (binderCustom || binderPick || binderSet) {
     return {
       view: 'binder', game: GAMES[params.get('game')] ? params.get('game') : DEFAULT_GAME,
-      set: binderSet, custom: binderCustom, layout: parseLayout(params.get('layout')),
+      set: binderSet, custom: binderCustom, pick: binderPick, layout: parseLayout(params.get('layout')),
       page: Math.max(1, parseInt(params.get('page'), 10) || 1), card: params.get('card') || null, key: String(Date.now()),
     };
+  }
+  if (clean.startsWith('picks/')) {
+    return { view: 'pick', game: GAMES[params.get('game')] ? params.get('game') : DEFAULT_GAME, set: decodeURIComponent(clean.slice(6)), key: String(Date.now()) };
   }
   const customPath = clean.startsWith('sets/custom/') ? decodeURIComponent(clean.slice(12)) : null;
   let setPath = !customPath && clean.startsWith('sets/') ? decodeURIComponent(clean.slice(5)) : null;
@@ -152,7 +169,7 @@ function readRoute() {
   if (gamePrefix && GAMES[gamePrefix[1]]) [, game, setPath] = gamePrefix;
   else if (setPath && !customPath && game !== DEFAULT_GAME) history.replaceState(null, '', routeUrl('set', { game, set: setPath }));
   return {
-    view: customPath ? 'custom' : setPath ? 'set' : ({ search: 'search', privacy: 'privacy', sets: 'sets', need: 'need', binder: 'binderIndex' })[clean] || 'home',
+    view: customPath ? 'custom' : setPath ? 'set' : ({ search: 'search', privacy: 'privacy', sets: 'sets', need: 'need', binder: 'binderIndex', picks: 'picks' })[clean] || 'home',
     game,
     set: customPath || setPath || params.get('set') || null,
     q: params.get('q') || '',
@@ -221,6 +238,9 @@ export default function App() {
   // On set pages the print sheet lives in a drawer, opened by "Add missing to print".
   const [sheetOpen, setSheetOpen] = useState(false);
   const [toast, setToast] = useState(null);
+  // Curators (supabase/picks.sql) can publish picks; their own picks include unpublished ones.
+  const [curator, setCurator] = useState(null);
+  const [myPicks, setMyPicks] = useState([]);
   const [waitlist, setWaitlist] = useState(null); // null | 'collector' | 'vendor'
   // Routes: <base> = home, <base>search?set=<id>|q=<name> = the tool.
   const [route, setRoute] = useState(readRoute);
@@ -240,6 +260,12 @@ export default function App() {
   };
   const view = route.view;
   const binderLayout = binderLayoutOverride || options.binderLayout;
+  // BinderWish picks (published, cached for offline); the one this page shows, if any.
+  const picksState = usePicks();
+  const routePickSlug = view === 'pick' ? route.set : route.pick;
+  const routePick = routePickSlug ? findPick(picksState.picks, routePickSlug) || myPicks.find((p) => p.slug === routePickSlug) || null : null;
+  // A pick's page uses the pick's game.
+  const gameId = routePick?.game || route.game;
   // The browser tab title follows the page (static set pages start with theirs).
   const titleSetName = (view === 'set' || view === 'binder') && route.set ? setsByGame[route.game]?.names?.get(route.set) : null;
   const titleCustom = (view === 'custom' || view === 'binder') && (route.custom || route.set) ? options.customSets.find((c) => c.id === (route.custom || route.set))?.name : null;
@@ -251,14 +277,16 @@ export default function App() {
       search: 'Search cards | BinderWish',
       privacy: 'Privacy policy | BinderWish',
       binderIndex: 'Virtual binder | BinderWish',
+      picks: 'BinderWish picks — curated sets to collect | BinderWish',
+      pick: routePick && `${routePick.title} | BinderWish picks`,
       set: titleSetName && `${titleSetName} master set checklist | BinderWish`,
       custom: titleCustom && `${titleCustom} | BinderWish`,
-      binder: (titleSetName || titleCustom) && `${titleSetName || titleCustom} · virtual binder | BinderWish`,
+      binder: (titleSetName || titleCustom || routePick?.title) && `${titleSetName || titleCustom || routePick.title} · virtual binder | BinderWish`,
     }[view];
     if (t) document.title = t;
-  }, [view, titleSetName, titleCustom]);
+  }, [view, titleSetName, titleCustom, routePick]);
   // Remember the last collection opened in the virtual binder ("Continue with …").
-  const lastBinderName = view === 'binder'
+  const lastBinderName = view === 'binder' && !route.pick
     ? (route.custom ? options.customSets.find((c) => c.id === route.custom)?.name : setsByGame[route.game]?.names?.get(route.set))
     : null;
   useEffect(() => {
@@ -267,9 +295,9 @@ export default function App() {
     setOptions((o) => (JSON.stringify(o.lastBinder) === JSON.stringify(next) ? o : { ...o, lastBinder: next }));
   }, [view, route.game, route.set, route.custom, lastBinderName]); // eslint-disable-line react-hooks/exhaustive-deps
   // Views with the print sheet (and the header's Print button).
-  const toolView = view === 'search' || view === 'set' || view === 'custom';
+  const toolView = view === 'search' || view === 'set' || view === 'custom' || view === 'pick';
   // Collection pages (a set, a custom set): no sidebar — the print sheet opens in a drawer.
-  const drawerView = view === 'set' || view === 'custom';
+  const drawerView = view === 'set' || view === 'custom' || view === 'pick';
 
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ queue, options })); } catch {}
@@ -292,9 +320,9 @@ export default function App() {
   }, [owned]);
 
   // The current game's sets, plus Pokémon's for the home page showcase.
-  useEffect(() => { getSetsInfo(route.game); getSetsInfo(DEFAULT_GAME); }, [route.game, getSetsInfo]);
-  const game = getGame(route.game);
-  const setsInfo = setsByGame[route.game] || EMPTY_SETS;
+  useEffect(() => { getSetsInfo(gameId); getSetsInfo(DEFAULT_GAME); }, [gameId, getSetsInfo]);
+  const game = getGame(gameId);
+  const setsInfo = setsByGame[gameId] || EMPTY_SETS;
 
   // Cards the bundled TCGPlayer catalog couldn't match get their TCGPlayer id and
   // price from TCGdex in the background, a few at a time.
@@ -338,6 +366,10 @@ export default function App() {
     const list = has ? o.mySets : [...o.mySets, { game: gameId, setId }];
     return { ...o, mySets: cleanMySets(list.map((m) => (m.game === gameId && m.setId === setId ? { ...m, binder: place(binder), location: place(location) } : m))) };
   }), []);
+  const toggleFollow = useCallback((slug) => setOptions((o) => ({
+    ...o,
+    followedPicks: o.followedPicks.some((f) => f.slug === slug) ? o.followedPicks.filter((f) => f.slug !== slug) : [...o.followedPicks, { slug }],
+  })), []);
   const toggleTracked = useCallback((gameId, setId) => setOptions((o) => {
     const has = o.mySets.some((m) => m.game === gameId && m.setId === setId);
     return { ...o, mySets: has ? o.mySets.filter((m) => !(m.game === gameId && m.setId === setId)) : [...o.mySets, { game: gameId, setId }] };
@@ -430,11 +462,16 @@ export default function App() {
       },
     });
   };
-  // Everything the wishlist covers: sets being collected, then custom sets.
+  // Picks being collected (those still published, or the curator's own).
+  const followedPicks = useMemo(() => options.followedPicks
+    .map((f) => findPick(picksState.picks, f.slug) || myPicks.find((p) => p.slug === f.slug))
+    .filter(Boolean), [options.followedPicks, picksState.picks, myPicks]);
+  // Everything the wishlist covers: sets being collected, then custom sets and picks.
   const wantSources = useMemo(() => [
     ...options.mySets.map((m) => ({ id: `set|${m.game}|${m.setId}`, kind: 'set', game: m.game, setId: m.setId, binder: m.binder, location: m.location })),
     ...options.customSets.map((c) => ({ id: `custom|${c.id}`, kind: 'custom', game: c.game, cs: c, binder: c.binder, location: c.location })),
-  ], [options.mySets, options.customSets]);
+    ...followedPicks.map((p) => ({ id: `pick|${p.slug}`, kind: 'custom', game: p.game, cs: pickToCs(p), label: 'BinderWish pick' })),
+  ], [options.mySets, options.customSets, followedPicks]);
 
   const changeQty = useCallback((key, delta) => {
     setQueue((q) => q.map((c) => (c.key === key ? { ...c, qty: c.qty + delta } : c)).filter((c) => c.qty > 0));
@@ -538,12 +575,34 @@ export default function App() {
   // Header navigation, by whether you're signed in.
   const [navAnchor, setNavAnchor] = useState(null);
   const signedIn = !!sync.user;
+  // Curator status and the curator's own picks, for the signed-in account.
+  const userId = sync.user?.id || null;
+  const refreshMyPicks = useCallback(() => {
+    if (!userId) { setCurator(null); setMyPicks([]); return; }
+    fetchCurator(userId).then((c) => {
+      setCurator(c);
+      if (c) fetchMyPicks(userId).then(setMyPicks).catch(() => {});
+    }).catch(() => {});
+  }, [userId]);
+  useEffect(() => { refreshMyPicks(); }, [refreshMyPicks]);
+  const setsActive = view === 'sets' || view === 'set' || view === 'custom';
+  const picksNav = picksState.picks.length > 0 || myPicks.length > 0
+    ? [{ label: 'Picks', icon: <AutoAwesomeOutlinedIcon />, go: () => navigate('picks'), active: view === 'picks' || view === 'pick' }] : [];
+  // Links into picks, for the home page and My sets.
+  const picksProps = {
+    pickHref: (slug) => routeUrl('pick', { set: slug }),
+    onOpenPick: (slug) => navigate('pick', { set: slug }),
+    allHref: routeUrl('picks'),
+    onOpenAll: () => navigate('picks'),
+  };
   const navItems = signedIn ? [
     { label: 'My wishlist', icon: <FactCheckOutlinedIcon />, go: () => navigate('need'), active: view === 'need' },
-    { label: 'My sets', icon: <GridViewIcon />, go: () => navigate('sets', { game: route.game }), active: view === 'sets' || drawerView },
+    { label: 'My sets', icon: <GridViewIcon />, go: () => navigate('sets', { game: route.game }), active: setsActive },
+    ...picksNav,
     { label: 'Search', icon: <SearchIcon />, go: () => navigate('search', { game: route.game }), active: view === 'search' },
   ] : [
-    { label: 'Sets', icon: <GridViewIcon />, go: () => navigate('sets', { game: route.game }), active: view === 'sets' || drawerView },
+    { label: 'Sets', icon: <GridViewIcon />, go: () => navigate('sets', { game: route.game }), active: setsActive },
+    ...picksNav,
     { label: 'Open virtual binder', icon: <AutoStoriesOutlinedIcon />, go: () => navigate('binderIndex', { game: route.game }),
       active: view === 'binder' || view === 'binderIndex', primary: !toolView },
     { label: 'Search', icon: <SearchIcon />, go: () => navigate('search', { game: route.game }), active: view === 'search' },
@@ -627,7 +686,12 @@ export default function App() {
             onGo={(where, g) => navigate(where, { game: g })}
             signedIn={signedIn}
             onSignIn={ACCOUNTS_ENABLED ? openSignIn : null}
+            picksProps={picksProps}
           />
+        )}
+        {view === 'picks' && (
+          <PicksIndexPage pickHref={(slug) => routeUrl('pick', { set: slug })} onOpenPick={(slug) => navigate('pick', { set: slug })}
+            followed={new Set(options.followedPicks.map((f) => f.slug))} />
         )}
         {view === 'binderIndex' && (
           <BinderIndexPage
@@ -642,9 +706,21 @@ export default function App() {
           />
         )}
         {view === 'binder' && (() => {
-          const cs = route.custom ? options.customSets.find((c) => c.id === route.custom) : null;
+          const cs = route.pick ? pickToCs(routePick) : route.custom ? options.customSets.find((c) => c.id === route.custom) : null;
           const binderGame = cs ? getGame(cs.game) : game;
-          const back = cs ? ['custom', { game: cs.game, set: cs.id }] : ['set', { game: route.game, set: route.set }];
+          const back = route.pick ? ['pick', { set: route.pick }] : cs ? ['custom', { game: cs.game, set: cs.id }] : ['set', { game: route.game, set: route.set }];
+          if (route.pick && !cs) {
+            return (
+              <Container maxWidth="md" sx={{ py: 4 }}>
+                {picksState.loaded ? (
+                  <>
+                    <Typography sx={{ mb: 2 }}>This pick isn’t available any more — it may have been unpublished.</Typography>
+                    <Button variant="contained" onClick={() => navigate('picks')}>See all picks</Button>
+                  </>
+                ) : <PageLoading />}
+              </Container>
+            );
+          }
           if (route.custom && !cs) {
             return (
               <Container maxWidth="md" sx={{ py: 4 }}>
@@ -670,9 +746,9 @@ export default function App() {
                 initialCard={route.card}
                 backLabel={cs ? cs.name : 'Back to set'}
                 onBack={() => navigate(...back)}
-                shareUrl={({ page, card }) => `${location.origin}${routeUrl('binder', { game: binderGame.id, set: route.set, custom: route.custom, layout: layoutParam(binderLayout), page, card })}`}
+                shareUrl={({ page, card }) => `${location.origin}${routeUrl('binder', { game: binderGame.id, set: route.set, custom: route.custom, pick: route.pick, layout: layoutParam(binderLayout), page, card })}`}
                 onState={({ page, card }) => history.replaceState(null, '', routeUrl('binder', {
-                  game: binderGame.id, set: route.set, custom: route.custom, layout: layoutParam(binderLayout), page, card,
+                  game: binderGame.id, set: route.set, custom: route.custom, pick: route.pick, layout: layoutParam(binderLayout), page, card,
                 }))}
               />
             </Container>
@@ -707,6 +783,8 @@ export default function App() {
             onOpenSet={(id) => navigate('set', { game: route.game, set: id })}
             getSetsInfo={getSetsInfo}
             onImport={importCollection}
+            followedPicks={followedPicks}
+            picksProps={picksProps}
           />
         )}
         {toolView && (
@@ -717,9 +795,47 @@ export default function App() {
             gap: 3,
             alignItems: 'start',
           }}>
-            {view === 'custom' ? (
+            {view === 'pick' ? (
+              <PickPage
+                key={route.set}
+                pick={routePick}
+                loaded={picksState.loaded}
+                game={game}
+                setsInfo={setsInfo}
+                variants={options.variants}
+                owned={owned}
+                queuedKeys={queuedKeys}
+                collecting={options.followedPicks.some((f) => f.slug === route.set)}
+                onToggleCollect={() => {
+                  const was = options.followedPicks.some((f) => f.slug === route.set);
+                  toggleFollow(route.set);
+                  setToast(was ? 'Removed from My sets' : 'Added to My sets — its missing cards are on your wishlist too');
+                }}
+                isOwner={!!routePick && routePick.curatorId === userId}
+                curator={curator}
+                userId={userId}
+                onPickSaved={(p, { published }) => { refreshMyPicks(); setToast(published ? 'Pick saved' : 'Pick unpublished — only you can see it'); }}
+                onPickDeleted={() => { refreshMyPicks(); navigate('picks'); setToast('Pick deleted'); }}
+                onToggleOwned={toggleOwned}
+                onAddMany={(slots) => { addMany(slots, { track: false }); setSheetOpen(true); }}
+                onOpenSheet={() => setSheetOpen(true)}
+                onOpenBinder={() => navigate('binder', { game: game.id, pick: route.set })}
+                backHref={routeUrl('picks')}
+                onBack={() => navigate('picks')}
+                shareUrl={() => `${location.origin}${routeUrl('pick', { set: route.set })}`}
+                onShared={() => setToast('Link copied')}
+              />
+            ) : view === 'custom' ? (
               <CustomSetPage
                 key={route.set}
+                curator={curator}
+                userId={userId}
+                publishedPick={myPicks.find((p) => p.sourceId === route.set) || null}
+                onPickSaved={(p) => {
+                  refreshMyPicks();
+                  setToast({ message: `Published “${p.title}”`, action: { label: 'View', onClick: () => navigate('pick', { set: p.slug }) } });
+                }}
+                onPickDeleted={() => { refreshMyPicks(); setToast('Pick deleted'); }}
                 cs={options.customSets.find((c) => c.id === route.set)}
                 game={game}
                 setsInfo={setsInfo}
@@ -804,9 +920,11 @@ export default function App() {
         <Snackbar
           open={!!toast}
           message={toast?.message ?? toast}
-          autoHideDuration={toast?.undo ? 8000 : 2000}
-          action={toast?.undo && (
+          autoHideDuration={toast?.undo || toast?.action ? 8000 : 2000}
+          action={toast?.undo ? (
             <Button color="primary" size="small" onClick={() => { toast.undo(); setToast(null); }}>Undo</Button>
+          ) : toast?.action && (
+            <Button color="primary" size="small" onClick={() => { toast.action.onClick(); setToast(null); }}>{toast.action.label}</Button>
           )}
           onClose={(_, reason) => { if (reason !== 'clickaway') setToast(null); }}
           anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}

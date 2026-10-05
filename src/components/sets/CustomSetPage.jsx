@@ -14,10 +14,12 @@ import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import CloseIcon from '@mui/icons-material/Close';
+import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined';
 import { SlotCard, SlotSkeletons, gridSx } from '../SlotGrid';
 import AddCardsDialog from './AddCardsDialog';
 import CustomSetDialog from './CustomSetDialog';
 import BinderInfo from './BinderInfo';
+import PublishPickDialog from '../picks/PublishPickDialog';
 import { customSetSlots, hasRules, ruleSummary } from '../../lib/customSets';
 import { DISPLAY_FONT, TOMATO } from '../../theme';
 
@@ -28,6 +30,7 @@ const money = (n) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2,
 export default function CustomSetPage({
   cs, game, setsInfo, variants, owned, queuedKeys, onUpdate, onDelete, binders = [], locations = [],
   onToggleOwned, onAddMany, onOpenSheet, onOpenBinder, onBack, backHref,
+  curator, userId, publishedPick, onPickSaved, onPickDeleted,
 }) {
   const [all, setAll] = useState(null);
   const [error, setError] = useState(null);
@@ -36,6 +39,7 @@ export default function CustomSetPage({
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   // Hand-picked slots added this visit, shown right away (the full list reloads in the background).
   const [extra, setExtra] = useState([]);
 
@@ -136,6 +140,11 @@ export default function CustomSetPage({
         )}
         <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setAdding(true)}>Add cards</Button>
         <Button variant="outlined" startIcon={<AutoStoriesOutlinedIcon />} onClick={onOpenBinder}>Binder view</Button>
+        {curator && (
+          <Button color="inherit" startIcon={<AutoAwesomeOutlinedIcon />} disabled={!slots || !inSet.length} onClick={() => setPublishing(true)}>
+            {publishedPick ? 'Update pick' : 'Publish as a pick'}
+          </Button>
+        )}
         <Button color="inherit" startIcon={<EditIcon />} onClick={() => setEditing(true)}>Edit</Button>
         <Button color="error" startIcon={<DeleteOutlinedIcon />} onClick={() => setConfirmDelete(true)}>Delete</Button>
       </Stack>
@@ -185,6 +194,12 @@ export default function CustomSetPage({
         pickedKeys={inSetKeys} owned={owned} onTogglePick={togglePick} />
       <CustomSetDialog open={editing} initial={cs} defaultGame={cs.game} onClose={() => setEditing(false)}
         onSave={(v) => { onUpdate({ name: v.name, names: v.names, artists: v.artists }); setEditing(false); }} />
+      {curator && (
+        <PublishPickDialog open={publishing} onClose={() => setPublishing(false)} userId={userId} curator={curator}
+          existing={publishedPick} source={{ cs, slots: inSet }} slots={inSet}
+          onSaved={(p) => { setPublishing(false); onPickSaved(p); }}
+          onDeleted={() => { setPublishing(false); onPickDeleted?.(); }} />
+      )}
       <Dialog open={confirmDelete} onClose={() => setConfirmDelete(false)} maxWidth="xs" fullWidth>
         <DialogTitle>Delete “{cs.name}”?</DialogTitle>
         <DialogContent>
@@ -202,7 +217,7 @@ export default function CustomSetPage({
 }
 
 // A custom set's cover: a small fan of its first cards, or its name when empty.
-export function CustomSetArt({ cs, gameName, preview = [], height = 160 }) {
+export function CustomSetArt({ cs, gameName, preview = [], height = 160, label = 'Custom' }) {
   return (
     <Box sx={{ height, borderRadius: '18px', position: 'relative', overflow: 'hidden', display: 'grid', placeItems: 'center',
       bgcolor: '#171717', border: '1px solid rgba(255,99,71,.35)',
@@ -223,7 +238,7 @@ export function CustomSetArt({ cs, gameName, preview = [], height = 160 }) {
         </Box>
       ) : (
         <Box sx={{ textAlign: 'center', px: 2 }}>
-          <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', color: TOMATO }}>{gameName} · Custom</Typography>
+          <Typography sx={{ fontSize: 11, fontWeight: 700, letterSpacing: '.14em', textTransform: 'uppercase', color: TOMATO }}>{gameName} · {label}</Typography>
           <Typography sx={{ fontFamily: DISPLAY_FONT, fontWeight: 800, fontSize: 22, lineHeight: 1.1, mt: 0.5, overflowWrap: 'anywhere' }}>{cs.name}</Typography>
         </Box>
       )}

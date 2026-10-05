@@ -162,7 +162,7 @@ export default function WantListPage({ sources, getSetsInfo, variants, owned, on
                   <Box sx={{ flex: 1, minWidth: 0 }}>
                     <Typography sx={{ fontWeight: 800 }} noWrap>{g.title}</Typography>
                     <Typography variant="body2" color="text.secondary" noWrap>
-                      {g.kind === 'custom' ? `${g.gameName} · Custom set` : g.gameName}
+                      {g.kind === 'custom' ? `${g.gameName} · ${g.label || 'Custom set'}` : g.gameName}
                       {(g.binder || g.location) && <> · <CollectionsBookmarkOutlinedIcon sx={{ fontSize: 14, verticalAlign: '-2px' }} /> {[g.binder, g.location].filter(Boolean).join(' · ')}</>}
                     </Typography>
                   </Box>

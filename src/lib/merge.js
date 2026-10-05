@@ -30,6 +30,7 @@ export function mergeById(base = [], local = [], remote = [], id) {
 const BY_ID = {
   mySets: (m) => `${m.game}|${m.setId}`,
   customSets: (c) => c.id,
+  followedPicks: (f) => f.slug,
 };
 
 // Settings: per field — this device's value where it changed it, else the account's.
@@ -59,5 +60,5 @@ export function mergeState(base, local, remote) {
 export const freshBase = (local) => ({
   owned: [],
   queue: [],
-  options: { ...local.options, mySets: [], customSets: [] },
+  options: { ...local.options, mySets: [], customSets: [], followedPicks: [] },
 });

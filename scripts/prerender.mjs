@@ -6,6 +6,7 @@
 //   dist/sets/<game>/<setId>.html a Lorcana / One Piece set's checklist          → /sets/lorcana/<setId>
 // (".html" files rather than folders: Cloudflare Pages serves them at the
 // extension-less address with no redirect.)
+//   dist/picks.html, dist/picks/<slug>.html   BinderWish picks (from Supabase)  → /picks/<slug>
 //   dist/sitemap.xml, dist/robots.txt
 //
 // Each page is the app's own index.html with its own <title>, description,
@@ -162,6 +163,53 @@ const GAMES = [
 // Pokémon sets keep their original addresses (/sets/sv08.5); the others live under the game.
 const setPath = (game, setId) => `sets/${game.id === 'pokemon' ? '' : `${game.id}/`}${encodeURIComponent(setId)}`;
 
+// BinderWish picks (curated sets), from Supabase — anyone can read published ones.
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://tbissnuzjfjuvjwtseza.supabase.co';
+const SUPABASE_KEY = process.env.VITE_SUPABASE_KEY || 'sb_publishable_d9GuSWBWrka2KDNgUF1N0w_e0cAsznX';
+async function loadPicks() {
+  const select = 'slug,game,title,description,covers,card_count,updated_at,curator:curators(name,kind)';
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/picks?select=${select}&published=eq.true&order=updated_at.desc`, {
+    headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
+  });
+  if (!res.ok) throw new Error(`${res.status}`);
+  return res.json();
+}
+
+async function writePicks(template) {
+  let picks;
+  try { picks = await loadPicks(); } catch (e) {
+    console.warn(`[prerender] skipped pick pages: ${e.message}`);
+    return [];
+  }
+  const gameName = (id) => GAMES.find((g) => g.id === id)?.full || id;
+  const curatorOf = (p) => p.curator?.name || 'BinderWish';
+  const covers = (p, h) => (p.covers || []).filter((c) => c.img).map((c) => `<img src="${esc(c.img)}" alt="" style="height:${h}px;border-radius:6px;margin-right:8px">`).join('');
+  await mkdir(path.join(DIST, 'picks'), { recursive: true });
+  for (const p of picks) {
+    const url = `${SITE}${BASE}picks/${p.slug}`;
+    const description = (p.description || `${p.title}: a curated ${gameName(p.game)} set to collect.`).slice(0, 300);
+    const body = `
+<p style="margin:0"><a href="${BASE}picks" style="${S.link}">All BinderWish picks</a></p>
+<p style="margin:16px 0 4px;${S.accent};font-weight:600">${esc(gameName(p.game))} · BinderWish pick</p>
+<h1 style="font-size:32px;line-height:1.15;margin:8px 0">${esc(p.title)}</h1>
+<p>${esc(p.description || '')}</p>
+<p style="${S.muted}">Curated by ${esc(curatorOf(p))} · ${p.card_count || 0} cards</p>
+<p>${covers(p, 160)}</p>
+<p>Collect this set on BinderWish: check off what you own, see every card’s binder pocket, take the missing cards to card shows, and print placeholders — free.</p>`;
+    await writeFile(path.join(DIST, 'picks', `${p.slug}.html`), page(template, {
+      title: `${p.title} — ${gameName(p.game)} collection checklist | BinderWish`, description, url, body,
+    }));
+  }
+  const list = picks.map((p) => `<li><a href="${BASE}picks/${p.slug}" style="${S.link}">${esc(p.title)}</a> <span style="${S.muted}">· ${esc(gameName(p.game))} · ${p.card_count || 0} cards · by ${esc(curatorOf(p))}</span></li>`).join('');
+  await writeFile(path.join(DIST, 'picks.html'), page(template, {
+    title: 'BinderWish picks — curated sets to collect | BinderWish',
+    description: 'Themed Pokémon, Lorcana and One Piece card collections put together by BinderWish and collectors we trust. Track them, see every card’s binder pocket, and print placeholders.',
+    url: `${SITE}${BASE}picks`,
+    body: `<h1 style="font-size:32px;margin:0 0 8px">BinderWish picks</h1><p style="${S.muted}">Themed sets worth a binder, put together by BinderWish and collectors we trust.</p><ul style="padding-left:20px">${list}</ul>`,
+  }));
+  return picks;
+}
+
 async function main() {
   const template = await readFile(path.join(DIST, 'index.html'), 'utf8');
   let today = new Date().toISOString().slice(0, 10);
@@ -241,16 +289,20 @@ ${logo ? `<img src="${esc(logo)}.webp" alt="${esc(name)} logo" style="max-height
     body: `<h1 style="font-size:32px;margin:0 0 8px">Master set checklists</h1><p style="${S.muted}">Every card and variant in every ${gameList} set, with today’s market prices. Pick a set to see its full checklist.</p>${sections}`,
   }));
 
+  const picks = await writePicks(template);
+
   // Sitemap + robots.
   const urls = [
     [`${SITE}${BASE}`, today], [`${SITE}${BASE}sets`, today], [`${SITE}${BASE}binder`, today], [`${SITE}${BASE}privacy`, today],
     ...all.flatMap(({ game, sets }) => sets.map((s) => [`${SITE}${BASE}${setPath(game, s.setId)}`, today])),
+    ...(picks.length ? [[`${SITE}${BASE}picks`, today]] : []),
+    ...picks.map((p) => [`${SITE}${BASE}picks/${p.slug}`, (p.updated_at || today).slice(0, 10)]),
   ];
   await writeFile(path.join(DIST, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${
     urls.map(([u, d]) => `  <url><loc>${esc(u)}</loc><lastmod>${d}</lastmod></url>`).join('\n')}\n</urlset>\n`);
   await writeFile(path.join(DIST, 'robots.txt'), `User-agent: *\nAllow: /\nDisallow: ${BASE}search\n\nSitemap: ${SITE}${BASE}sitemap.xml\n`);
 
-  console.log(`[prerender] ${all.map((g) => `${g.sets.length} ${g.game.name}`).join(', ')} set pages, sets index, sitemap (${urls.length} URLs), robots.txt`);
+  console.log(`[prerender] ${all.map((g) => `${g.sets.length} ${g.game.name}`).join(', ')} set pages, ${picks.length} picks, sets index, sitemap (${urls.length} URLs), robots.txt`);
 }
 
 main().catch((e) => { console.error('[prerender] failed:', e); process.exit(1); });

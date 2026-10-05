@@ -69,7 +69,7 @@ export function useWantList(sources, getSetsInfo, variants) {
           if (!slots.length && src.kind === 'set') throw new Error('no cards');
           fresh.set(src.id, {
             id: src.id, kind: src.kind, game: src.game, gameName: game.name, setId: src.setId || null, setName,
-            title, binder: src.binder || '', location: src.location || '', slots,
+            title, label: src.label || null, binder: src.binder || '', location: src.location || '', slots,
           });
         } catch {
           failed++;
