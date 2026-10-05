@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { lazy, Suspense, useMemo, useState } from 'react';
 import {
   Box, Button, Container, InputAdornment, MenuItem, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import AddIcon from '@mui/icons-material/Add';
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
+import UploadFileIcon from '@mui/icons-material/UploadFile';
 import SetTile, { ProgressLine } from './SetTile';
 import { CustomSetArt } from './CustomSetPage';
 import CustomSetDialog from './CustomSetDialog';
@@ -14,6 +15,8 @@ import { BinderLine } from './BinderInfo';
 import { GAME_LIST } from '../../games';
 import { DISPLAY_FONT, TOMATO } from '../../theme';
 
+const ImportDialog = lazy(() => import('./ImportDialog'));
+
 const tileGrid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 250px), 1fr))', gap: { xs: 1, sm: 2 } };
 const newestFirst = (a, b) => (b.released || '').localeCompare(a.released || '');
 
@@ -21,11 +24,12 @@ const newestFirst = (a, b) => (b.released || '').localeCompare(a.released || '')
 // with the sets you're collecting — and your progress in each — up top.
 export default function MySetsPage({
   game, onGameChange, setsInfo, mySets, customSets, owned, variants, setHref, onOpenSet, customHref, onOpenCustom, onCreateCustom,
-  wantHref, onOpenWant,
+  wantHref, onOpenWant, getSetsInfo, onImport,
 }) {
   const [series, setSeries] = useState('all');
   const [q, setQ] = useState('');
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [binder, setBinder] = useState('all'); // all | '' (no binder) | a binder name
   const inBinder = (b) => binder === 'all' || (b || '') === binder;
   const myCustomAll = customSets.filter((c) => c.game === game.id);
@@ -61,10 +65,22 @@ export default function MySetsPage({
       <Typography color="text.secondary" sx={{ mt: 1, maxWidth: 620 }}>
         Open a set to see every card and variant, check off what you own, and add what’s missing to your print sheet.
       </Typography>
-      <Button component="a" href={wantHref} onClick={(e) => { e.preventDefault(); onOpenWant(); }} variant="outlined"
-        startIcon={<FactCheckOutlinedIcon />} sx={{ mt: 2 }}>
-        Wishlist — for card shows
-      </Button>
+      <Stack direction="row" spacing={1} useFlexGap sx={{ mt: 2, flexWrap: 'wrap' }}>
+        <Button component="a" href={wantHref} onClick={(e) => { e.preventDefault(); onOpenWant(); }} variant="outlined"
+          startIcon={<FactCheckOutlinedIcon />}>
+          Wishlist — for card shows
+        </Button>
+        <Button variant="outlined" color="inherit" startIcon={<UploadFileIcon />} onClick={() => setImporting(true)}
+          sx={{ borderColor: 'rgba(255,255,255,.23)' }}>
+          Import collection
+        </Button>
+      </Stack>
+      {importing && (
+        <Suspense fallback={null}>
+          <ImportDialog open defaultGame={game.id} getSetsInfo={getSetsInfo} owned={owned}
+            onClose={() => setImporting(false)} onImport={onImport} />
+        </Suspense>
+      )}
 
       <ToggleButtonGroup exclusive size="small" value={game.id} onChange={(_, v) => v && v !== game.id && onGameChange(v)} aria-label="Game"
         sx={{ mt: 3, bgcolor: 'rgba(255,255,255,.06)', borderRadius: 99, p: 0.5,

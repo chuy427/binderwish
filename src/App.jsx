@@ -117,7 +117,8 @@ function routeUrl(view, { game, set, q, custom, layout, page, card } = {}) {
   const gameQs = game && game !== DEFAULT_GAME ? `?game=${game}` : '';
   if (view === 'sets') return `${BASE}sets${gameQs}`;
   if (view === 'need') return `${BASE}need`;
-  if (view === 'set') return `${BASE}sets/${encodeURIComponent(set)}${gameQs}`;
+  // Non-Pokémon sets live under the game: /sets/lorcana/7 (the static, search-friendly pages too).
+  if (view === 'set') return `${BASE}sets/${game && game !== DEFAULT_GAME ? `${game}/` : ''}${encodeURIComponent(set)}`;
   if (view === 'custom') return `${BASE}sets/custom/${encodeURIComponent(set)}${gameQs}`;
   if (view !== 'search') return BASE;
   const params = new URLSearchParams();
@@ -144,10 +145,15 @@ function readRoute() {
     };
   }
   const customPath = clean.startsWith('sets/custom/') ? decodeURIComponent(clean.slice(12)) : null;
-  const setPath = !customPath && clean.startsWith('sets/') ? decodeURIComponent(clean.slice(5)) : null;
+  let setPath = !customPath && clean.startsWith('sets/') ? decodeURIComponent(clean.slice(5)) : null;
+  // /sets/lorcana/7 → game from the path (older links carry ?game= instead).
+  const gamePrefix = setPath?.match(/^([a-z]+)\/(.+)$/);
+  let game = GAMES[params.get('game')] ? params.get('game') : DEFAULT_GAME;
+  if (gamePrefix && GAMES[gamePrefix[1]]) [, game, setPath] = gamePrefix;
+  else if (setPath && !customPath && game !== DEFAULT_GAME) history.replaceState(null, '', routeUrl('set', { game, set: setPath }));
   return {
     view: customPath ? 'custom' : setPath ? 'set' : ({ search: 'search', privacy: 'privacy', sets: 'sets', need: 'need', binder: 'binderIndex' })[clean] || 'home',
-    game: GAMES[params.get('game')] ? params.get('game') : DEFAULT_GAME,
+    game,
     set: customPath || setPath || params.get('set') || null,
     q: params.get('q') || '',
     // Remounts the search panel when arriving from somewhere else (home, back/forward).
@@ -393,6 +399,24 @@ export default function App() {
     });
     if (adding) setQueue((q) => q.filter((c) => c.key !== key));
   }, [owned, trackSets]);
+
+  // Collection import (CSV): check off every matched card, with undo.
+  const importCollection = (slots) => {
+    const added = slots.filter((sl) => !owned.has(sl.key));
+    if (!added.length) return;
+    const keys = new Set(added.map((sl) => sl.key));
+    const trackedBefore = options.mySets;
+    trackSets(added);
+    setOwned((prev) => new Set([...prev, ...keys]));
+    setQueue((q) => q.filter((c) => !keys.has(c.key)));
+    setToast({
+      message: `Checked off ${added.length} card${added.length === 1 ? '' : 's'}`,
+      undo: () => {
+        setOwned((prev) => { const n = new Set(prev); keys.forEach((k) => n.delete(k)); return n; });
+        setOptions((o) => ({ ...o, mySets: trackedBefore }));
+      },
+    });
+  };
 
   // Wishlist "Got it": mark owned, with undo (which also puts it back on the print sheet).
   const gotIt = (slot) => {
@@ -681,6 +705,8 @@ export default function App() {
             variants={options.variants}
             setHref={(id) => routeUrl('set', { game: route.game, set: id })}
             onOpenSet={(id) => navigate('set', { game: route.game, set: id })}
+            getSetsInfo={getSetsInfo}
+            onImport={importCollection}
           />
         )}
         {toolView && (
