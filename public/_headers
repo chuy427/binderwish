@@ -1,8 +1,8 @@
 # Cloudflare Pages response headers.
 #
-# The content security policy is report-only while we confirm nothing legitimate is
-# blocked (violations show in the browser console); rename the header to
-# Content-Security-Policy to enforce it. Card images come from several hosts
+# Content security policy: 'unsafe-inline' scripts are allowed only because
+# Cloudflare's bot detection (Bot Fight Mode) injects a different inline script on
+# every request, so no hash or nonce can cover it. Card images come from several hosts
 # (TCGdex, Lorcast, TCGPlayer, Bandai), hence https: for images; MUI injects its
 # styles at runtime, hence 'unsafe-inline' for styles. challenges.cloudflare.com is
 # Turnstile (the sign-in security check).
@@ -11,7 +11,7 @@
   X-Frame-Options: DENY
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=(), serial=(), hid=()
   Cross-Origin-Opener-Policy: same-origin
-  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' https://static.cloudflareinsights.com https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://tbissnuzjfjuvjwtseza.supabase.co wss://tbissnuzjfjuvjwtseza.supabase.co https://api.tcgdex.net https://api.lorcast.com https://formspree.io https://cloudflareinsights.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://tbissnuzjfjuvjwtseza.supabase.co wss://tbissnuzjfjuvjwtseza.supabase.co https://api.tcgdex.net https://api.lorcast.com https://formspree.io https://cloudflareinsights.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
 
 /sw.js
   Cache-Control: no-cache
