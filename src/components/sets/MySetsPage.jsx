@@ -63,7 +63,7 @@ export default function MySetsPage({
       </Typography>
       <Button component="a" href={wantHref} onClick={(e) => { e.preventDefault(); onOpenWant(); }} variant="outlined"
         startIcon={<FactCheckOutlinedIcon />} sx={{ mt: 2 }}>
-        Want list — for card shows
+        Wishlist — for card shows
       </Button>
 
       <ToggleButtonGroup exclusive size="small" value={game.id} onChange={(_, v) => v && v !== game.id && onGameChange(v)} aria-label="Game"

@@ -50,14 +50,16 @@ export default function AccountMenu({ sync, onPrivacy }) {
   return (
     <>
       <Tooltip title={st.text}>
-        <IconButton aria-label="Account" onClick={(e) => setAnchor(e.currentTarget)} sx={{ p: 0.5, flexShrink: 0 }}>
+        <Button color="inherit" aria-label="Account" onClick={(e) => setAnchor(e.currentTarget)}
+          sx={{ flexShrink: 0, minWidth: 0, px: { xs: 0.5, md: 1.25 }, borderRadius: 99, gap: 1 }}>
           <Badge overlap="circular" variant="dot" invisible={status === 'saved'}
             color={status === 'error' ? 'error' : 'warning'} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}>
-            <Avatar sx={{ width: 36, height: 36, bgcolor: 'rgba(255,255,255,.12)', color: 'text.primary', fontWeight: 700 }}>
+            <Avatar sx={{ width: 32, height: 32, bgcolor: 'rgba(255,255,255,.12)', color: 'text.primary', fontWeight: 700, fontSize: 15 }}>
               {(user.email || '?')[0].toUpperCase()}
             </Avatar>
           </Badge>
-        </IconButton>
+          <Box component="span" sx={{ display: { xs: 'none', md: 'inline' } }}>Account</Box>
+        </Button>
       </Tooltip>
       <Menu anchorEl={anchor} open={!!anchor} onClose={() => setAnchor(null)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}>

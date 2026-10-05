@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  AppBar, Box, Button, IconButton, CircularProgress, Container, Drawer, GlobalStyles, Link, Snackbar, Stack, Toolbar, Typography,
+  AppBar, Box, Button, IconButton, CircularProgress, Container, Drawer, GlobalStyles, Link, ListItemIcon, Menu, MenuItem, Snackbar, Stack, Toolbar, Typography,
 } from '@mui/material';
 import PrintIcon from '@mui/icons-material/Print';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
-import CollectionsIcon from '@mui/icons-material/Collections';
 import CollectionsBookmarkIcon from '@mui/icons-material/CollectionsBookmark';
 import GridViewIcon from '@mui/icons-material/GridView';
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
@@ -15,6 +14,10 @@ import SetPage from './components/sets/SetPage';
 import CustomSetPage from './components/sets/CustomSetPage';
 import WantListPage from './components/WantListPage';
 import BinderPage, { layoutParam, parseLayout } from './components/binder/BinderPage';
+import BinderIndexPage from './components/binder/BinderIndexPage';
+import AutoStoriesOutlinedIcon from '@mui/icons-material/AutoStoriesOutlined';
+import SearchIcon from '@mui/icons-material/Search';
+import MenuIcon from '@mui/icons-material/Menu';
 import { cleanCustomSets, newCustomSetId } from './lib/customSets';
 import PrintSheetPanel from './components/PrintSheetPanel';
 import PrintArea from './components/PrintArea';
@@ -43,6 +46,8 @@ const DEFAULT_OPTIONS = {
   customSets: [],
   // Virtual binder layout: pockets per page as columns × rows.
   binderLayout: { cols: 3, rows: 3 },
+  // The last collection opened in the virtual binder: { game, set | custom, name }.
+  lastBinder: null,
 };
 // Each entry can also say where the set is kept: { binder, location }.
 const place = (v) => (typeof v === 'string' ? v.trim().slice(0, 60) : '');
@@ -90,6 +95,7 @@ const BASE = import.meta.env.BASE_URL; // "/"
 
 function routeUrl(view, { game, set, q, custom, layout, page, card } = {}) {
   if (view === 'privacy') return `${BASE}privacy`;
+  if (view === 'binderIndex') return `${BASE}binder${game && game !== DEFAULT_GAME ? `?game=${game}` : ''}`;
   if (view === 'binder') {
     const params = new URLSearchParams();
     if (game && game !== DEFAULT_GAME) params.set('game', game);
@@ -131,7 +137,7 @@ function readRoute() {
   const customPath = clean.startsWith('sets/custom/') ? decodeURIComponent(clean.slice(12)) : null;
   const setPath = !customPath && clean.startsWith('sets/') ? decodeURIComponent(clean.slice(5)) : null;
   return {
-    view: customPath ? 'custom' : setPath ? 'set' : ({ search: 'search', privacy: 'privacy', sets: 'sets', need: 'need' })[clean] || 'home',
+    view: customPath ? 'custom' : setPath ? 'set' : ({ search: 'search', privacy: 'privacy', sets: 'sets', need: 'need', binder: 'binderIndex' })[clean] || 'home',
     game: GAMES[params.get('game')] ? params.get('game') : DEFAULT_GAME,
     set: customPath || setPath || params.get('set') || null,
     q: params.get('q') || '',
@@ -219,6 +225,15 @@ export default function App() {
   };
   const view = route.view;
   const binderLayout = binderLayoutOverride || options.binderLayout;
+  // Remember the last collection opened in the virtual binder ("Continue with …").
+  const lastBinderName = view === 'binder'
+    ? (route.custom ? options.customSets.find((c) => c.id === route.custom)?.name : setsByGame[route.game]?.names?.get(route.set))
+    : null;
+  useEffect(() => {
+    if (view !== 'binder' || !lastBinderName) return;
+    const next = { game: route.game, set: route.set || null, custom: route.custom || null, name: lastBinderName };
+    setOptions((o) => (JSON.stringify(o.lastBinder) === JSON.stringify(next) ? o : { ...o, lastBinder: next }));
+  }, [view, route.game, route.set, route.custom, lastBinderName]); // eslint-disable-line react-hooks/exhaustive-deps
   // Views with the print sheet (and the header's Print button).
   const toolView = view === 'search' || view === 'set' || view === 'custom';
   // Collection pages (a set, a custom set): no sidebar — the print sheet opens in a drawer.
@@ -353,7 +368,7 @@ export default function App() {
     if (adding) setQueue((q) => q.filter((c) => c.key !== key));
   }, [owned, trackSets]);
 
-  // Want list "Got it": mark owned, with undo (which also puts it back on the print sheet).
+  // Wishlist "Got it": mark owned, with undo (which also puts it back on the print sheet).
   const gotIt = (slot) => {
     const item = queue.find((c) => c.key === slot.key);
     toggleOwned(slot.key);
@@ -365,7 +380,7 @@ export default function App() {
       },
     });
   };
-  // Everything the want list covers: sets being collected, then custom sets.
+  // Everything the wishlist covers: sets being collected, then custom sets.
   const wantSources = useMemo(() => [
     ...options.mySets.map((m) => ({ id: `set|${m.game}|${m.setId}`, kind: 'set', game: m.game, setId: m.setId, binder: m.binder, location: m.location })),
     ...options.customSets.map((c) => ({ id: `custom|${c.id}`, kind: 'custom', game: c.game, cs: c, binder: c.binder, location: c.location })),
@@ -412,6 +427,7 @@ export default function App() {
   }, [queue]);
 
   const readyCount = queue.length - stats.pending;
+
 
   // Clearing syncs to every device, so it can be undone for a few seconds.
   // Binder names / locations already in use — suggested when cataloguing a set.
@@ -469,6 +485,20 @@ export default function App() {
     },
   });
 
+  // Header navigation, by whether you're signed in.
+  const [navAnchor, setNavAnchor] = useState(null);
+  const signedIn = !!sync.user;
+  const navItems = signedIn ? [
+    { label: 'My wishlist', icon: <FactCheckOutlinedIcon />, go: () => navigate('need'), active: view === 'need' },
+    { label: 'My sets', icon: <GridViewIcon />, go: () => navigate('sets', { game: route.game }), active: view === 'sets' || drawerView },
+    { label: 'Search', icon: <SearchIcon />, go: () => navigate('search', { game: route.game }), active: view === 'search' },
+  ] : [
+    { label: 'Sets', icon: <GridViewIcon />, go: () => navigate('sets', { game: route.game }), active: view === 'sets' || drawerView },
+    { label: 'Open virtual binder', icon: <AutoStoriesOutlinedIcon />, go: () => navigate('binderIndex', { game: route.game }),
+      active: view === 'binder' || view === 'binderIndex', primary: !toolView },
+    { label: 'Search', icon: <SearchIcon />, go: () => navigate('search', { game: route.game }), active: view === 'search' },
+  ];
+
   return (
     <>
       <GlobalStyles styles={`@page { size: ${options.paper === 'a4' ? 'A4' : 'letter'} portrait; margin: 0; }`} />
@@ -493,27 +523,26 @@ export default function App() {
                 </Typography>
               </Box>
             </Box>
-            {ACCOUNTS_ENABLED && <AccountMenu sync={sync} onPrivacy={() => navigate('privacy')} />}
-            <Button color="inherit" startIcon={<FactCheckOutlinedIcon />} onClick={() => navigate('need')}
-              aria-current={view === 'need' ? 'page' : undefined}
-              sx={{ flexShrink: 0, display: { xs: 'none', md: 'inline-flex' }, color: view === 'need' ? 'primary.main' : 'inherit' }}>
-              Want list
-            </Button>
-            <Button color="inherit" startIcon={<GridViewIcon />} onClick={() => navigate('sets', { game: route.game })}
-              aria-current={view === 'sets' || drawerView ? 'page' : undefined}
-              sx={{ flexShrink: 0, display: { xs: 'none', md: 'inline-flex' }, color: view === 'sets' || drawerView ? 'primary.main' : 'inherit' }}>
-              My sets
-            </Button>
-            <IconButton aria-label="My sets" onClick={() => navigate('sets', { game: route.game })}
-              sx={{ display: { xs: 'inline-flex', md: 'none' }, color: view === 'sets' || drawerView ? 'primary.main' : 'inherit' }}>
-              <GridViewIcon />
-            </IconButton>
-            {!toolView ? (
-              <Button variant="contained" size="large" startIcon={<CollectionsIcon />} onClick={() => navigate('search')}>
-                <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Open my binder</Box>
-                <Box component="span" sx={{ display: { xs: 'inline', sm: 'none' } }}>Binder</Box>
+            {/* Navigation: labelled buttons on larger screens, a menu on phones. */}
+            {navItems.map((n) => (
+              <Button key={n.label} color="inherit" startIcon={n.icon} onClick={n.go} aria-current={n.active ? 'page' : undefined}
+                variant={n.primary ? 'contained' : 'text'}
+                sx={{ flexShrink: 0, display: { xs: 'none', md: 'inline-flex' }, ...(n.primary ? {} : { color: n.active ? 'primary.main' : 'inherit' }) }}>
+                {n.label}
               </Button>
-            ) : (
+            ))}
+            <IconButton aria-label="Menu" onClick={(e) => setNavAnchor(e.currentTarget)} sx={{ display: { xs: 'inline-flex', md: 'none' } }}>
+              <MenuIcon />
+            </IconButton>
+            <Menu anchorEl={navAnchor} open={!!navAnchor} onClose={() => setNavAnchor(null)}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}>
+              {navItems.map((n) => (
+                <MenuItem key={n.label} selected={n.active} onClick={() => { setNavAnchor(null); n.go(); }}>
+                  <ListItemIcon>{n.icon}</ListItemIcon>{n.label}
+                </MenuItem>
+              ))}
+            </Menu>
+            {toolView && (
             <Button
               variant="contained"
               size="large"
@@ -542,6 +571,8 @@ export default function App() {
                 </IconButton>
               </>
             )}
+            {/* Account sits at the far right of the header. */}
+            {ACCOUNTS_ENABLED && <AccountMenu sync={sync} onPrivacy={() => navigate('privacy')} />}
           </Toolbar>
         </AppBar>
 
@@ -553,6 +584,18 @@ export default function App() {
             onStart={({ game: g, set, query }) => navigate('search', { game: g, set: set?.id, q: query })}
             onPrivacy={() => navigate('privacy')}
             onVendorWaitlist={WAITLIST_ENABLED ? () => setWaitlist('vendor') : null}
+          />
+        )}
+        {view === 'binderIndex' && (
+          <BinderIndexPage
+            game={game}
+            onGameChange={(g) => navigate('binderIndex', { game: g })}
+            setsInfo={setsInfo}
+            mySets={options.mySets}
+            customSets={options.customSets}
+            last={options.lastBinder}
+            onOpenSet={(g, id) => navigate('binder', { game: g, set: id })}
+            onOpenCustom={(g, id) => navigate('binder', { game: g, custom: id })}
           />
         )}
         {view === 'binder' && (() => {

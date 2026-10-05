@@ -1,7 +1,7 @@
 {
   "name": "BinderWish",
   "short_name": "BinderWish",
-  "description": "Track your master sets, print binder placeholders, and check your want list at card shows — even offline.",
+  "description": "Track your master sets, print binder placeholders, and check your wishlist at card shows — even offline.",
   "start_url": "./need",
   "scope": "./",
   "display": "browser",
@@ -27,7 +27,7 @@
   ],
   "shortcuts": [
     {
-      "name": "Want list",
+      "name": "Wishlist",
       "url": "./need"
     },
     {

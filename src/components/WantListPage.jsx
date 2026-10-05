@@ -94,7 +94,7 @@ export default function WantListPage({ sources, getSetsInfo, variants, owned, on
   return (
     <Container maxWidth="md" sx={{ py: { xs: 3, md: 5 } }}>
       <Typography variant="overline" color="primary">Card show mode</Typography>
-      <Typography variant="h1" sx={{ fontFamily: DISPLAY_FONT, fontSize: { xs: 34, md: 48 }, mt: 0.5 }}>Want list</Typography>
+      <Typography variant="h1" sx={{ fontFamily: DISPLAY_FONT, fontSize: { xs: 34, md: 48 }, mt: 0.5 }}>Wishlist</Typography>
       <Typography color="text.secondary" sx={{ mt: 1 }}>
         Everything you still need from <Link href={setsHref} onClick={(e) => { e.preventDefault(); onOpenSets(); }}>My sets</Link> and
         your custom sets. Tap <CheckCircleOutlineIcon sx={{ fontSize: 17, verticalAlign: '-3px' }} /> the moment you buy one.
