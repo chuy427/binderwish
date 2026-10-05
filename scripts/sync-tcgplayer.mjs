@@ -166,13 +166,14 @@ async function syncPokemon() {
 
   // For the "My sets" page: each set's release date and series, from TCGdex's
   // set details (TCGPlayer's publishedOn is unreliable for old promo groups, so
-  // it's only a fallback). meta: { <setId>: [released, series] }
+  // it's only a fallback). meta: { <setId>: [released, series, name, logo] }
+  // (name / logo are also used by scripts/prerender.mjs for the static set pages)
   const publishedOn = new Map(cat.groups.map((g) => [g.groupId, (g.publishedOn || '').slice(0, 10)]));
   const meta = {};
   await mapLimit(tcgdexSets.filter((s) => !pocket.has(s.id)), CONCURRENCY, async (s) => {
     const d = await getJSON(`${TCGDEX}/sets/${encodeURIComponent(s.id)}`).catch(() => null);
     const fallback = (sets[s.id] || []).map((g) => publishedOn.get(g)).filter(Boolean).sort()[0] || '';
-    meta[s.id] = [d?.releaseDate || fallback, d?.serie?.name || ''];
+    meta[s.id] = [d?.releaseDate || fallback, d?.serie?.name || '', s.name, s.logo || ''];
   });
 
   await writeIndex(out, sets, { meta });

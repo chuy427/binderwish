@@ -1,99 +1,13 @@
 import { Box, Button, Container, Stack, Typography } from '@mui/material';
 import CheckIcon from '@mui/icons-material/Check';
 import CloseIcon from '@mui/icons-material/Close';
-import QrCode2Icon from '@mui/icons-material/QrCode2';
-import StyleIcon from '@mui/icons-material/Style';
-import PrintIcon from '@mui/icons-material/Print';
-import TaskAltIcon from '@mui/icons-material/TaskAlt';
-import { QRCodeSVG } from 'qrcode.react';
 import Reveal from './Reveal';
 import CardFit from './CardFit';
 import PlaceholderCard from '../PlaceholderCard';
-import { tcgplayerUrl } from '../../catalog';
 import { TOMATO } from '../../theme';
 import { SAMPLE_LOGO } from '../../lib/logo';
 
 const INK = '#1B1B1F';
-const tileSx = { flexShrink: 0, width: { xs: 140, md: 180 }, height: { xs: 140, md: 180 }, borderRadius: '28px', overflow: 'hidden', position: 'relative', display: 'grid', placeItems: 'center' };
-
-// ---------- Feature tiles (scrolling strip) ----------
-function Tiles({ showcase }) {
-  const cards = showcase?.cards || [];
-  const chase = showcase?.chase || [];
-  const cardTile = (s, i) => (
-    <Box key={`c${i}`} sx={{ ...tileSx, bgcolor: '#222' }}>
-      {s && <Box sx={{ width: '72%', transform: `rotate(${i % 2 ? 6 : -6}deg)` }}><CardFit slot={s} radius={8} /></Box>}
-    </Box>
-  );
-  const iconTile = (icon, label, i) => (
-    <Box key={`i${i}`} sx={{ ...tileSx, bgcolor: '#2a2826' }}>
-      <Stack sx={{ alignItems: 'center', gap: 1 }}>
-        <Box sx={{ width: 64, height: 64, borderRadius: '50%', bgcolor: 'rgba(255,255,255,.08)', display: 'grid', placeItems: 'center', '& svg': { fontSize: 32 } }}>{icon}</Box>
-        <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary' }}>{label}</Typography>
-      </Stack>
-    </Box>
-  );
-  const qrTile = (
-    <Box key="qr" sx={{ ...tileSx, bgcolor: '#F4F1EE' }}>
-      <Stack sx={{ alignItems: 'center', gap: 1 }}>
-        <QRCodeSVG value={chase[0] ? tcgplayerUrl(chase[0]) : 'https://www.tcgplayer.com'} size={96} marginSize={0} />
-        <Typography sx={{ fontSize: 12, fontWeight: 700, color: INK }}>Scan for price</Typography>
-      </Stack>
-    </Box>
-  );
-  const priceTile = (
-    <Box key="price" sx={{ ...tileSx, bgcolor: TOMATO, color: INK }}>
-      <Stack sx={{ alignItems: 'center' }}>
-        <Typography sx={{ fontFamily: 'Unbounded', fontWeight: 800, fontSize: { xs: 26, md: 32 } }}>{chase[1] ? `$${Math.round(chase[1].price)}` : '$—'}</Typography>
-        <Typography sx={{ fontSize: 12, fontWeight: 700 }}>live market price</Typography>
-      </Stack>
-    </Box>
-  );
-  const placeholderTile = (
-    <Box key="ph" sx={{ ...tileSx, bgcolor: '#222' }}>
-      {cards[2] && <Box sx={{ width: '72%', transform: 'rotate(4deg)' }}><CardFit slot={cards[2]} kind="placeholder" radius={8} /></Box>}
-    </Box>
-  );
-  const variantsTile = (
-    <Box key="var" sx={{ ...tileSx, bgcolor: '#2a2826' }}>
-      <Stack sx={{ gap: 0.75, alignItems: 'center' }}>
-        {['Normal', 'Reverse Holo', 'Cold Foil', 'Alternate Art', 'Enchanted'].map((v, i) => (
-          <Box key={v} sx={{ fontSize: 11, fontWeight: 700, px: 1.25, py: 0.25, borderRadius: 99, border: `1px solid ${i === 1 ? TOMATO : 'rgba(255,255,255,.25)'}`, color: i === 1 ? TOMATO : 'text.secondary' }}>{v}</Box>
-        ))}
-      </Stack>
-    </Box>
-  );
-  const row = [
-    cardTile(cards[10], 0), iconTile(<StyleIcon />, 'Every variant', 1), qrTile, cardTile(chase[2], 3),
-    priceTile, placeholderTile, iconTile(<PrintIcon />, 'Binder order', 6), variantsTile,
-    cardTile(cards[12], 8), iconTile(<TaskAltIcon />, 'Owned checklist', 9), cardTile(chase[3], 10), iconTile(<QrCode2Icon />, 'Exact listing', 11),
-  ];
-  return (
-    <Box sx={{ overflow: 'hidden', maskImage: 'linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent)', '&:hover .bw-marquee': { animationPlayState: 'paused' } }}>
-      <Box className="bw-marquee" sx={{ display: 'flex', gap: 2.5, width: 'max-content', animation: 'bw-marquee 50s linear infinite',
-        '@keyframes bw-marquee': { from: { transform: 'translateX(0)' }, to: { transform: 'translateX(-50%)' } },
-        '@media (prefers-reduced-motion: reduce)': { animation: 'none', flexWrap: 'wrap', width: 'auto', justifyContent: 'center' } }}>
-        {row}{/* duplicated for a seamless loop */}
-        <Box sx={{ display: 'contents', '@media (prefers-reduced-motion: reduce)': { display: 'none' } }} aria-hidden>{row}</Box>
-      </Box>
-    </Box>
-  );
-}
-
-export function FeatureTiles({ showcase, onStart }) {
-  return (
-    <Box sx={{ py: { xs: 6, md: 10 } }}>
-      <Container maxWidth="md">
-        <Reveal sx={{ textAlign: 'center', mb: 5 }}>
-          <Typography variant="overline" color="primary">Main features</Typography>
-          <Typography variant="h2" sx={{ fontSize: { xs: 28, md: 48 } }}>Made to make master sets easy for everyone</Typography>
-          <Button variant="contained" size="large" sx={{ mt: 3 }} onClick={onStart}>Start now</Button>
-        </Reveal>
-      </Container>
-      <Reveal><Tiles showcase={showcase} /></Reveal>
-    </Box>
-  );
-}
 
 // ---------- Placeholder anatomy ----------
 const VENDOR_POINTS = [
@@ -189,7 +103,7 @@ export function Compare({ showcase }) {
 }
 
 // ---------- Closing call to action ----------
-export function FinalCta({ onStart, vendor = false, onWaitlist }) {
+export function FinalCta({ onStart, vendor = false, onWaitlist, onSignIn }) {
   return (
     <Container maxWidth="lg" sx={{ py: { xs: 6, md: 10 } }}>
       <Reveal>
@@ -207,9 +121,14 @@ export function FinalCta({ onStart, vendor = false, onWaitlist }) {
             </>
           ) : (
             <>
-              <Typography variant="h2" sx={{ fontSize: { xs: 30, md: 60 }, my: 2 }}>Your binder,<br />finished today</Typography>
-              <Typography color="text.secondary" sx={{ mb: 4 }}>Free, no account needed. Your checklist is saved in your browser.</Typography>
-              <Button variant="contained" size="large" onClick={onStart} sx={{ px: 4 }}>Start your checklist</Button>
+              <Typography variant="h2" sx={{ fontSize: { xs: 30, md: 60 }, my: 2 }}>Your binder,<br />finished</Typography>
+              <Typography color="text.secondary" sx={{ mb: 4 }}>
+                Start right away — no account needed. {onSignIn ? 'Add a free account later to sync across your devices.' : 'Your collection syncs across your devices.'}
+              </Typography>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ justifyContent: 'center', alignItems: 'center' }}>
+                <Button variant="contained" size="large" onClick={onStart} sx={{ px: 4 }}>Start a set</Button>
+                {onSignIn && <Button variant="outlined" size="large" onClick={onSignIn} sx={{ px: 3 }}>Create free account</Button>}
+              </Stack>
             </>
           )}
         </Box>

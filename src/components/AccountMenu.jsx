@@ -12,6 +12,9 @@ import CloudSyncIcon from '@mui/icons-material/CloudSync';
 import CloudOffIcon from '@mui/icons-material/CloudOff';
 import { deleteAccount, sendSignInLink, signOut, takeLinkError, verifyCode } from '../lib/cloud';
 
+export const OPEN_SIGN_IN = 'binderwish:open-sign-in';
+export const openSignIn = () => window.dispatchEvent(new Event(OPEN_SIGN_IN));
+
 const STATUS = {
   loading: { icon: <CloudSyncIcon fontSize="small" />, text: 'Loading your collection…', color: 'text.secondary' },
   saving: { icon: <CloudSyncIcon fontSize="small" />, text: 'Saving…', color: 'text.secondary' },
@@ -28,6 +31,12 @@ export default function AccountMenu({ sync, onPrivacy }) {
   useEffect(() => {
     const e = takeLinkError();
     if (e) { setLinkProblem(e); setSignInOpen(true); }
+  }, []);
+  // Other parts of the page (e.g. "Create free account" on the home page) open sign-in.
+  useEffect(() => {
+    const open = () => setSignInOpen(true);
+    window.addEventListener(OPEN_SIGN_IN, open);
+    return () => window.removeEventListener(OPEN_SIGN_IN, open);
   }, []);
   const [anchor, setAnchor] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);

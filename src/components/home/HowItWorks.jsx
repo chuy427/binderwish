@@ -3,7 +3,7 @@ import { Box, Container, LinearProgress, Stack, Typography, useMediaQuery } from
 import LayersIcon from '@mui/icons-material/Layers';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import PrintIcon from '@mui/icons-material/Print';
-import QrCodeScannerIcon from '@mui/icons-material/QrCodeScanner';
+import AutoStoriesOutlinedIcon from '@mui/icons-material/AutoStoriesOutlined';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import SearchIcon from '@mui/icons-material/Search';
@@ -13,10 +13,10 @@ import { useRotation } from './useShowcase';
 import { TOMATO } from '../../theme';
 
 const STEPS = [
-  { icon: <LayersIcon />, title: 'Pick your set', body: 'See every card in the set — and for master sets, every variant: reverse holos, cold foils, Poké Ball patterns, Alternate Arts, Enchanteds and more.' },
-  { icon: <TaskAltIcon />, title: 'Check off what you own', body: 'Tap the cards you already have. Your progress, and the value of what’s left to buy, update as you go.' },
-  { icon: <PrintIcon />, title: 'Print what’s missing', body: 'Placeholders print at real card size, 9 to a page in binder order — optionally matching your binder’s exact pages.' },
-  { icon: <QrCodeScannerIcon />, title: 'Sleeve, scan, swap', body: 'Slide them into your binder. When you’re ready to buy, scan a placeholder to open that exact card on TCGPlayer.' },
+  { icon: <LayersIcon />, title: 'Pick a set', body: 'Every card in the set — and for master sets, every variant: reverse holos, Poké Ball patterns, Alternate Arts, Enchanteds and more. Or build a custom set around a Pokémon, character or artist.' },
+  { icon: <TaskAltIcon />, title: 'Check off cards', body: 'Tap the cards you already have. Your progress, and the value of what’s left to buy, update as you go — on every device.' },
+  { icon: <AutoStoriesOutlinedIcon />, title: 'See your binder', body: 'The virtual binder lays the set out page by page in your binder’s layout, so you know the exact pocket for every card — and can share it.' },
+  { icon: <PrintIcon />, title: 'Fill the gaps', body: 'Print real-size placeholders to hold each spot, with a QR code to today’s price — and take your wishlist to card shows, even offline.' },
 ];
 
 function PickVisual({ showcase }) {
@@ -68,26 +68,30 @@ function PrintVisual({ showcase }) {
   );
 }
 
-function ScanVisual({ showcase }) {
-  const s = showcase?.chase[0];
+function BinderVisual({ showcase }) {
+  const page = (showcase?.cards || []).slice(9, 18);
+  const pick = page[8];
+  const ghost = [1, 4, 6];
   return (
-    <Stack direction="row" spacing={3} sx={{ alignItems: 'center' }}>
-      <Box sx={{ width: 150, transform: 'rotate(-5deg)', boxShadow: '0 30px 60px rgba(0,0,0,.5)', borderRadius: '4px' }}>
-        <CardFit slot={s} kind="placeholder" radius={6} />
+    <Stack spacing={1.5} sx={{ width: '100%', maxWidth: 300, alignItems: 'center' }}>
+      <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Page 2 of {showcase ? Math.ceil(showcase.total / 9) : '…'} · 3 × 3</Typography>
+      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0.75, p: 1, bgcolor: '#1f1f1f', borderRadius: '12px', width: '100%' }}>
+        {page.map((s, i) => (
+          <CardFit key={s.key} slot={s} radius={4}
+            sx={{ filter: ghost.includes(i) ? 'grayscale(1)' : 'none', opacity: ghost.includes(i) ? 0.35 : 1, outline: i === 8 ? `2px solid ${TOMATO}` : 'none', outlineOffset: 2 }} />
+        ))}
       </Box>
-      <Box sx={{ width: 170, borderRadius: '22px', border: '6px solid #2a2a2a', bgcolor: '#F4F1EE', color: '#111', p: 1.5, boxShadow: '0 30px 60px rgba(0,0,0,.5)' }}>
-        <Typography sx={{ fontSize: 10, fontWeight: 700, color: '#666' }}>TCGPLAYER</Typography>
-        <Box sx={{ width: 80, mx: 'auto', my: 1 }}><CardFit slot={s} radius={4} /></Box>
-        <Typography sx={{ fontSize: 12, fontWeight: 700, lineHeight: 1.2 }} noWrap>{s?.name}</Typography>
-        <Typography sx={{ fontSize: 11, color: '#666' }}>{s?.variantLabel}</Typography>
-        <Typography sx={{ fontSize: 20, fontWeight: 800, mt: 0.5 }}>{s ? `$${s.price.toFixed(2)}` : ''}</Typography>
-        <Box sx={{ mt: 1, bgcolor: TOMATO, color: '#1B1B1F', fontSize: 11, fontWeight: 700, textAlign: 'center', borderRadius: 99, py: 0.5 }}>Add to cart</Box>
-      </Box>
+      {pick && (
+        <Box sx={{ bgcolor: '#222', borderRadius: '10px', px: 1.5, py: 1, width: '100%' }}>
+          <Typography sx={{ fontWeight: 700, fontSize: 13 }} noWrap>{pick.name}</Typography>
+          <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>Page 2 · row 3 · pocket 3</Typography>
+        </Box>
+      )}
     </Stack>
   );
 }
 
-const VISUALS = [PickVisual, OwnVisual, PrintVisual, ScanVisual];
+const VISUALS = [PickVisual, OwnVisual, BinderVisual, PrintVisual];
 
 const STEP_VH = 70; // scroll distance per step while the panel is pinned
 

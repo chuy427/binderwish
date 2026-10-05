@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Box, Container, Typography } from '@mui/material';
 import Hero from './home/Hero';
 import HowItWorks from './home/HowItWorks';
-import { Anatomy, Compare, FeatureTiles, FinalCta } from './home/Sections';
+import { Anatomy, Compare, FinalCta } from './home/Sections';
+import FeatureGrid from './home/FeatureGrid';
 import VendorSection, { VendorSteps } from './VendorSection';
 import AudienceSwitch from './home/AudienceSwitch';
 import SiteFootnote from './SiteFootnote';
@@ -13,7 +14,7 @@ import { DEFAULT_GAME, GAME_LIST } from '../games';
 // tiles, sample placeholder, vendor display case) use real cards and live prices
 // from one game — Pokémon until the visitor picks another, with either the
 // search's game toggle or the chips under the binder.
-export default function HomePage({ setsByGame, loadGameSets, onStart, onPrivacy, onVendorWaitlist }) {
+export default function HomePage({ setsByGame, loadGameSets, onStart, onPrivacy, onVendorWaitlist, onGo, signedIn, onSignIn }) {
   const [featuredId, setFeaturedId] = useState(DEFAULT_GAME);
   const showcase = useShowcase(featuredId, setsByGame[featuredId]);
   // Collector or vendor story below the hero. Vendors can be sent straight to
@@ -53,11 +54,12 @@ export default function HomePage({ setsByGame, loadGameSets, onStart, onPrivacy,
         </Box>
       ) : (
         <Box key="collector" className="bw-fade">
+          <FeatureGrid showcase={showcase} signedIn={signedIn}
+            onGo={(where) => (where === 'signIn' && onSignIn ? onSignIn() : onGo(where === 'signIn' ? 'sets' : where, featuredId))} />
           <HowItWorks showcase={showcase} />
-          <FeatureTiles showcase={showcase} onStart={startTool} />
           <Anatomy showcase={showcase} />
           <Compare showcase={showcase} />
-          <FinalCta onStart={startTool} />
+          <FinalCta onStart={() => onGo('sets', featuredId)} onSignIn={signedIn ? null : onSignIn} />
         </Box>
       )}
 

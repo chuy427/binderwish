@@ -2,7 +2,7 @@ import { Box, Container, Link, Typography } from '@mui/material';
 
 // Where people send access/removal requests. Set before publishing the waitlist.
 export const CONTACT_EMAIL = 'hello@binderwish.com'; // forwarded to the owner's inbox (Cloudflare Email Routing)
-const EFFECTIVE_DATE = 'October 1, 2026';
+const EFFECTIVE_DATE = 'October 5, 2026';
 
 function Contact() {
   return CONTACT_EMAIL
@@ -24,8 +24,8 @@ export default function PrivacyPage() {
       <Typography color="text.secondary" sx={{ mt: 1 }}>Effective {EFFECTIVE_DATE}</Typography>
 
       <P>
-        BinderWish is a free tool for printing binder placeholders for trading cards. We’ve kept it simple: accounts
-        are optional, and there are no ads, no analytics and no tracking cookies. This page explains the little data that is involved.
+        BinderWish is a free tool for tracking trading card master sets and printing binder placeholders. We’ve kept it simple: accounts
+        are optional, and there are no ads and no tracking cookies — just cookie-free visit counts. This page explains the little data that is involved.
       </P>
 
       <H>Data that stays in your browser</H>
@@ -69,7 +69,7 @@ export default function PrivacyPage() {
       <H>Services your browser connects to</H>
       <P>Using BinderWish means your browser loads content from these services, which can see your IP address and browser details, like any website:</P>
       <Box component="ul" sx={{ color: 'text.secondary', mt: 0, pl: 3, '& li': { mb: 1 } }}>
-        <li><b>Cloudflare</b> hosts the site (<Link href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">Cloudflare’s privacy policy</Link>).</li>
+        <li><b>Cloudflare</b> hosts the site and provides Web Analytics: privacy-first visit counts (which pages are viewed, the referring site, country and device type) with no cookies and nothing that identifies you or follows you across sites (<Link href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">Cloudflare’s privacy policy</Link>).</li>
         <li><b>TCGdex</b> (Pokémon) and <b>Lorcast</b> (Lorcana) provide card lists, search and images. Your searches are sent to them to get results.</li>
         <li><b>TCGPlayer</b>: its image servers supply One Piece card images, and you visit TCGPlayer itself when you open a card link or scan a placeholder’s QR code (<Link href="https://www.tcgplayer.com/privacy-policy" target="_blank" rel="noopener">TCGPlayer’s privacy policy</Link>).</li>
         <li><b>Supabase</b>, only if you sign in, to store and sync your account.</li>

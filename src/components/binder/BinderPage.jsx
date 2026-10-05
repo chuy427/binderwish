@@ -15,22 +15,7 @@ import { setSlots, tcgplayerUrl } from '../../catalog';
 import { customSetSlots } from '../../lib/customSets';
 import { DISPLAY_FONT } from '../../theme';
 
-// Binder layouts: columns × rows of pockets per page.
-export const PRESETS = [
-  { cols: 2, rows: 2, label: '2 × 2' },
-  { cols: 3, rows: 3, label: '3 × 3' },
-  { cols: 4, rows: 3, label: '4 × 3' },
-  { cols: 3, rows: 4, label: '3 × 4' },
-  { cols: 5, rows: 4, label: '5 × 4' },
-];
-const MAX = 8;
-export const parseLayout = (s) => {
-  const m = /^(\d)x(\d)$/.exec(s || '');
-  if (!m) return null;
-  const cols = +m[1], rows = +m[2];
-  return cols >= 1 && rows >= 1 && cols <= MAX && rows <= MAX ? { cols, rows } : null;
-};
-export const layoutParam = (l) => `${l.cols}x${l.rows}`;
+import { MAX, PRESETS } from './layout';
 
 // On a computer, pages show as an open binder: page 1 alone on the right, then
 // the back of one sheet beside the front of the next (2–3, 4–5, …).

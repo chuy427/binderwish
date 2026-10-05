@@ -61,11 +61,11 @@ export default function Hero({ setsByGame, loadGameSets, onStart, showcase, game
       <Container maxWidth="lg" sx={{ position: 'relative', textAlign: 'center' }}>
         <Typography variant="overline" color="primary" component="div">For master set collectors</Typography>
         <Typography variant="h1" sx={{ fontSize: { xs: 34, sm: 50, md: 68 }, mt: 1.5 }}>
-          See your master set<br />complete — before it is
+          Track every card.<br />Fill every pocket.
         </Typography>
         <Typography color="text.secondary" sx={{ mt: 2.5, mx: 'auto', maxWidth: 620, fontSize: { xs: 16, sm: 18 } }}>
-          Print card-sized placeholders for the cards you’re missing. Each one holds its spot in your binder
-          and has a QR code that opens that exact card on TCGPlayer.
+          Check off your master sets, see exactly where each card goes in your binder, and print placeholders
+          for the gaps — each with a QR code to that card’s price today.
         </Typography>
 
         <ToggleButtonGroup exclusive size="small" value={gameId} onChange={(_, v) => pickGame(v)} aria-label="Game"

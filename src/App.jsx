@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AppBar, Box, Button, IconButton, CircularProgress, Container, Drawer, GlobalStyles, Link, ListItemIcon, Menu, MenuItem, Snackbar, Stack, Toolbar, Typography,
 } from '@mui/material';
@@ -8,30 +8,40 @@ import CollectionsBookmarkIcon from '@mui/icons-material/CollectionsBookmark';
 import GridViewIcon from '@mui/icons-material/GridView';
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import CloseIcon from '@mui/icons-material/Close';
-import SearchPanel from './components/SearchPanel';
-import MySetsPage from './components/sets/MySetsPage';
-import SetPage from './components/sets/SetPage';
-import CustomSetPage from './components/sets/CustomSetPage';
-import WantListPage from './components/WantListPage';
-import BinderPage, { layoutParam, parseLayout } from './components/binder/BinderPage';
-import BinderIndexPage from './components/binder/BinderIndexPage';
+import { layoutParam, parseLayout } from './components/binder/layout';
 import AutoStoriesOutlinedIcon from '@mui/icons-material/AutoStoriesOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import MenuIcon from '@mui/icons-material/Menu';
 import { cleanCustomSets, newCustomSetId } from './lib/customSets';
-import PrintSheetPanel from './components/PrintSheetPanel';
-import PrintArea from './components/PrintArea';
-import HomePage from './components/HomePage';
-import BackupSection from './components/BackupSection';
-import PrivacyPage from './components/PrivacyPage';
+
+
 import SiteFootnote from './components/SiteFootnote';
-import WaitlistDialog, { WAITLIST_ENABLED } from './components/WaitlistDialog';
-import AccountMenu from './components/AccountMenu';
+import { WAITLIST_ENABLED } from './lib/waitlist';
+import AccountMenu, { openSignIn } from './components/AccountMenu';
 import { useCloudSync } from './lib/useCloudSync';
 import { ACCOUNTS_ENABLED } from './lib/cloud';
 import { downloadBackup, mergeBackup } from './lib/backup';
 import { DEFAULT_GAME, GAMES, getGame } from './games';
 import { DISPLAY_FONT } from './theme';
+
+// Pages load on demand, so the first visit downloads only what it shows.
+const HomePage = lazy(() => import('./components/HomePage'));
+const MySetsPage = lazy(() => import('./components/sets/MySetsPage'));
+const SetPage = lazy(() => import('./components/sets/SetPage'));
+const CustomSetPage = lazy(() => import('./components/sets/CustomSetPage'));
+const WantListPage = lazy(() => import('./components/WantListPage'));
+const BinderPage = lazy(() => import('./components/binder/BinderPage'));
+const BinderIndexPage = lazy(() => import('./components/binder/BinderIndexPage'));
+const PrivacyPage = lazy(() => import('./components/PrivacyPage'));
+const PrintArea = lazy(() => import('./components/PrintArea'));
+const SearchPanel = lazy(() => import('./components/SearchPanel'));
+const PrintSheetPanel = lazy(() => import('./components/PrintSheetPanel'));
+const BackupSection = lazy(() => import('./components/BackupSection'));
+const WaitlistDialog = lazy(() => import('./components/WaitlistDialog'));
+
+const PageLoading = () => (
+  <Box sx={{ display: 'grid', placeItems: 'center', minHeight: '50vh' }}><CircularProgress /></Box>
+);
 
 // Keys kept from the app's earlier "ProxyScan" name so saved data carries over.
 const STORAGE_KEY = 'proxyscan.v1';
@@ -225,6 +235,23 @@ export default function App() {
   };
   const view = route.view;
   const binderLayout = binderLayoutOverride || options.binderLayout;
+  // The browser tab title follows the page (static set pages start with theirs).
+  const titleSetName = (view === 'set' || view === 'binder') && route.set ? setsByGame[route.game]?.names?.get(route.set) : null;
+  const titleCustom = (view === 'custom' || view === 'binder') && (route.custom || route.set) ? options.customSets.find((c) => c.id === (route.custom || route.set))?.name : null;
+  useEffect(() => {
+    const t = {
+      home: 'BinderWish — Track master sets, see every binder pocket, print placeholders',
+      sets: 'My sets | BinderWish',
+      need: 'Wishlist | BinderWish',
+      search: 'Search cards | BinderWish',
+      privacy: 'Privacy policy | BinderWish',
+      binderIndex: 'Virtual binder | BinderWish',
+      set: titleSetName && `${titleSetName} master set checklist | BinderWish`,
+      custom: titleCustom && `${titleCustom} | BinderWish`,
+      binder: (titleSetName || titleCustom) && `${titleSetName || titleCustom} · virtual binder | BinderWish`,
+    }[view];
+    if (t) document.title = t;
+  }, [view, titleSetName, titleCustom]);
   // Remember the last collection opened in the virtual binder ("Continue with …").
   const lastBinderName = view === 'binder'
     ? (route.custom ? options.customSets.find((c) => c.id === route.custom)?.name : setsByGame[route.game]?.names?.get(route.set))
@@ -525,7 +552,7 @@ export default function App() {
             </Box>
             {/* Navigation: labelled buttons on larger screens, a menu on phones. */}
             {navItems.map((n) => (
-              <Button key={n.label} color="inherit" startIcon={n.icon} onClick={n.go} aria-current={n.active ? 'page' : undefined}
+              <Button key={n.label} color={n.primary ? 'primary' : 'inherit'} startIcon={n.icon} onClick={n.go} aria-current={n.active ? 'page' : undefined}
                 variant={n.primary ? 'contained' : 'text'}
                 sx={{ flexShrink: 0, display: { xs: 'none', md: 'inline-flex' }, ...(n.primary ? {} : { color: n.active ? 'primary.main' : 'inherit' }) }}>
                 {n.label}
@@ -576,6 +603,7 @@ export default function App() {
           </Toolbar>
         </AppBar>
 
+        <Suspense fallback={<PageLoading />}>
         {view === 'privacy' && <PrivacyPage />}
         {view === 'home' && (
           <HomePage
@@ -584,6 +612,9 @@ export default function App() {
             onStart={({ game: g, set, query }) => navigate('search', { game: g, set: set?.id, q: query })}
             onPrivacy={() => navigate('privacy')}
             onVendorWaitlist={WAITLIST_ENABLED ? () => setWaitlist('vendor') : null}
+            onGo={(where, g) => navigate(where, { game: g })}
+            signedIn={signedIn}
+            onSignIn={ACCOUNTS_ENABLED ? openSignIn : null}
           />
         )}
         {view === 'binderIndex' && (
@@ -754,6 +785,8 @@ export default function App() {
         </Container>
         )}
 
+        </Suspense>
+
         <Snackbar
           open={!!toast}
           message={toast?.message ?? toast}
@@ -766,8 +799,10 @@ export default function App() {
         />
       </Box>
 
-      <WaitlistDialog open={!!waitlist} audience={waitlist || 'collector'} onClose={() => setWaitlist(null)} queue={queue} count={stats.count} />
-      {printing && <PrintArea queue={queue} options={options} getSetsInfo={getSetsInfo} onDone={() => setPrinting(false)} />}
+      <Suspense fallback={null}>
+        {waitlist && <WaitlistDialog open audience={waitlist} onClose={() => setWaitlist(null)} queue={queue} count={stats.count} />}
+        {printing && <PrintArea queue={queue} options={options} getSetsInfo={getSetsInfo} onDone={() => setPrinting(false)} />}
+      </Suspense>
     </>
   );
 }
