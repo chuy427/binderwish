@@ -198,8 +198,9 @@ export default function BinderPage({
   );
 }
 
-// One binder page: a grid of pockets. Owned cards in full colour; the rest as
-// faded "ghosts" so gaps stand out; pockets past the end of the collection empty.
+// One binder page: a grid of pockets, every card in colour. Owned cards carry a
+// check; the rest are slightly dimmed with a dashed edge so gaps still stand out;
+// pockets past the end of the collection are empty.
 function BinderSheet({ pageIndex, pages, slots, layout, owned, selKey, onSelect }) {
   const per = layout.cols * layout.rows;
   const blank = pageIndex == null || (slots && pageIndex >= pages);
@@ -224,8 +225,9 @@ function BinderSheet({ pageIndex, pages, slots, layout, owned, selKey, onSelect 
                   <Box component={CardImg} slot={s} alt="" loading="lazy"
                     fallback={<Box sx={{ aspectRatio: '63 / 88', borderRadius: '5px', border: '1px dashed rgba(255,255,255,.25)', display: 'grid', placeItems: 'center', fontSize: 11, color: 'text.secondary' }}>#{s.numberLabel}</Box>}
                     sx={{ width: '100%', aspectRatio: '63 / 88', objectFit: 'cover', borderRadius: '5px', display: 'block',
-                      filter: own ? 'none' : 'grayscale(1)', opacity: own ? 1 : 0.38 }} />
-                  {!own && <Box sx={{ position: 'absolute', inset: 0, borderRadius: '5px', border: '1px dashed rgba(255,255,255,.35)', pointerEvents: 'none' }} />}
+                      opacity: own ? 1 : 0.6 }} />
+                  {own ? <CheckCircleIcon sx={{ position: 'absolute', top: 3, left: 3, fontSize: { xs: 14, sm: 18 }, color: '#4caf50', bgcolor: '#111', borderRadius: '50%', pointerEvents: 'none' }} />
+                    : <Box sx={{ position: 'absolute', inset: 0, borderRadius: '5px', border: '1px dashed rgba(255,255,255,.45)', pointerEvents: 'none' }} />}
                 </Box>
               );
             })}

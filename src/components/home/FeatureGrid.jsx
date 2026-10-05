@@ -51,7 +51,7 @@ function BinderVisual({ cards }) {
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0.5, p: 0.75, bgcolor: '#141414', borderRadius: '8px', maxWidth: 104, mx: 'auto' }}>
         {page.map((s, i) => (
           <CardFit key={s.key} slot={s} radius={3}
-            sx={{ filter: [1, 4, 6].includes(i) ? 'grayscale(1)' : 'none', opacity: [1, 4, 6].includes(i) ? 0.35 : 1,
+            sx={{ opacity: [1, 4, 6].includes(i) ? 0.6 : 1,
               outline: i === 8 ? `2px solid ${TOMATO}` : 'none', outlineOffset: 1 }} />
         ))}
       </Box>

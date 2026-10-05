@@ -78,7 +78,7 @@ function BinderVisual({ showcase }) {
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0.75, p: 1, bgcolor: '#1f1f1f', borderRadius: '12px', width: '100%' }}>
         {page.map((s, i) => (
           <CardFit key={s.key} slot={s} radius={4}
-            sx={{ filter: ghost.includes(i) ? 'grayscale(1)' : 'none', opacity: ghost.includes(i) ? 0.35 : 1, outline: i === 8 ? `2px solid ${TOMATO}` : 'none', outlineOffset: 2 }} />
+            sx={{ opacity: ghost.includes(i) ? 0.6 : 1, outline: i === 8 ? `2px solid ${TOMATO}` : 'none', outlineOffset: 2 }} />
         ))}
       </Box>
       {pick && (
