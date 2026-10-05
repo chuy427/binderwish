@@ -816,6 +816,11 @@ export default function App() {
                 userId={userId}
                 onPickSaved={(p, { published }) => { refreshMyPicks(); setToast(published ? 'Pick saved' : 'Pick unpublished — only you can see it'); }}
                 onPickDeleted={() => { refreshMyPicks(); navigate('picks'); setToast('Pick deleted'); }}
+                // Cards edited on the pick also update the custom set it came from, so they match.
+                onCardsSaved={(p, definition) => {
+                  refreshMyPicks();
+                  if (p.sourceId && options.customSets.some((c) => c.id === p.sourceId)) updateCustomSet(p.sourceId, { picks: definition.picks, hidden: definition.hidden });
+                }}
                 onToggleOwned={toggleOwned}
                 onAddMany={(slots) => { addMany(slots, { track: false }); setSheetOpen(true); }}
                 onOpenSheet={() => setSheetOpen(true)}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert, Box, Button, CircularProgress, InputAdornment, LinearProgress, Paper, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography,
 } from '@mui/material';
@@ -11,11 +11,14 @@ import CheckIcon from '@mui/icons-material/Check';
 import AddIcon from '@mui/icons-material/Add';
 import LinkIcon from '@mui/icons-material/Link';
 import EditIcon from '@mui/icons-material/Edit';
+import CloseIcon from '@mui/icons-material/Close';
+import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
 import { SlotCard, SlotSkeletons, gridSx } from '../SlotGrid';
 import { CuratorLine, PickArt } from './PickParts';
 import PublishPickDialog from './PublishPickDialog';
+import AddCardsDialog from '../sets/AddCardsDialog';
 import { customSetSlots } from '../../lib/customSets';
-import { pickToCs } from '../../lib/picks';
+import { pickToCs, savePick } from '../../lib/picks';
 import { DISPLAY_FONT } from '../../theme';
 
 const money = (n) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -24,7 +27,7 @@ const monthYear = (iso) => (iso ? new Date(iso).toLocaleDateString(undefined, { 
 // A BinderWish pick: the curator's description and every card, tap to own —
 // "Collect" adds it to My sets (and the wishlist), following later changes.
 export default function PickPage({
-  pick, loaded, game, setsInfo, variants, owned, queuedKeys, collecting, onToggleCollect, isOwner, curator, userId, onPickSaved, onPickDeleted,
+  pick, loaded, game, setsInfo, variants, owned, queuedKeys, collecting, onToggleCollect, isOwner, curator, userId, onPickSaved, onPickDeleted, onCardsSaved,
   onToggleOwned, onAddMany, onOpenSheet, onOpenBinder, onBack, backHref, shareUrl, onShared,
 }) {
   const [all, setAll] = useState(null);
@@ -32,7 +35,12 @@ export default function PickPage({
   const [filter, setFilter] = useState('all');
   const [q, setQ] = useState('');
   const [editing, setEditing] = useState(false);
-  const cs = useMemo(() => pickToCs(pick), [pick]);
+  const [adding, setAdding] = useState(false);
+  // The curator's card edits: shown at once, saved to the pick shortly after.
+  const [draft, setDraft] = useState(null); // { picks, hidden } not yet saved
+  const [saving, setSaving] = useState(null); // null | 'saving' | 'saved' | error message
+  const saveTimer = useRef(null);
+  const cs = useMemo(() => pickToCs(pick && draft ? { ...pick, definition: { ...pick.definition, ...draft } } : pick), [pick, draft]);
   const defKey = cs ? JSON.stringify([cs.names, cs.artists, cs.picks.map((p) => p.key), variants]) : '';
 
   useEffect(() => {
@@ -50,6 +58,52 @@ export default function PickPage({
     const hidden = new Set(cs.hidden);
     return all.filter((s) => !hidden.has(s.key));
   }, [all, cs]);
+  const inSetKeys = useMemo(() => new Set((inSet || []).map((s) => s.key)), [inSet]);
+
+  // ---------- Curator editing ----------
+  function change(next) {
+    setDraft(next);
+    setSaving('saving');
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      try {
+        const definition = { ...pick.definition, ...next };
+        const slotsNow = await customSetSlots(game, pickToCs({ ...pick, definition }), setsInfo, variants);
+        const hiddenNow = new Set(definition.hidden);
+        await savePick(userId, { ...pick, definition, count: slotsNow.filter((s) => !hiddenNow.has(s.key)).length });
+        onCardsSaved?.(pick, definition);
+        setSaving('saved');
+      } catch (e) {
+        setSaving(/fetch|network/i.test(e.message) ? 'Couldn’t save — check your connection; your changes will save with the next edit.' : `Couldn’t save: ${e.message}`);
+      }
+    }, 800);
+  }
+  useEffect(() => () => clearTimeout(saveTimer.current), []);
+  // Once the saved pick comes back, it replaces the draft.
+  useEffect(() => { if (saving === 'saved') setDraft(null); }, [pick]); // eslint-disable-line react-hooks/exhaustive-deps
+  const def = () => draft || { picks: cs.picks, hidden: cs.hidden };
+  const pickKeys = new Set(cs?.picks.map((p) => p.key) || []);
+  const removeCard = (s) => {
+    const d = def();
+    change(pickKeys.has(s.key) && !s.fromRule
+      ? { ...d, picks: d.picks.filter((p) => p.key !== s.key) }
+      : { ...d, hidden: [...d.hidden, s.key] });
+  };
+  const setMany = (list, add) => {
+    let { picks, hidden } = def();
+    picks = [...picks]; hidden = [...hidden];
+    for (const s of list) {
+      if (add && !inSetKeys.has(s.key)) {
+        if (hidden.includes(s.key)) hidden = hidden.filter((k) => k !== s.key);
+        else picks.push({ setId: s.setId, key: s.key });
+      } else if (!add && inSetKeys.has(s.key)) {
+        if (picks.some((p) => p.key === s.key)) picks = picks.filter((p) => p.key !== s.key);
+        else hidden.push(s.key);
+      }
+    }
+    change({ picks, hidden });
+  };
+  const togglePick = (s) => setMany([s], !inSetKeys.has(s.key));
 
   const back = (
     <Button component="a" href={backHref} onClick={(e) => { e.preventDefault(); onBack(); }} startIcon={<ArrowBackIcon />} color="inherit" sx={{ mb: 2, ml: -1 }}>
@@ -130,8 +184,14 @@ export default function PickPage({
         )}
         <Button variant="outlined" startIcon={<AutoStoriesOutlinedIcon />} onClick={onOpenBinder}>Binder view</Button>
         <Button color="inherit" startIcon={<LinkIcon />} onClick={share}>Share</Button>
+        {isOwner && <Button color="inherit" startIcon={<AddIcon />} onClick={() => setAdding(true)}>Add cards</Button>}
         {isOwner && <Button color="inherit" startIcon={<EditIcon />} onClick={() => setEditing(true)}>Edit pick</Button>}
       </Stack>
+      {isOwner && saving && (
+        <Typography variant="body2" color={saving.startsWith('Couldn') ? 'error' : 'text.secondary'} sx={{ mt: 1.5 }}>
+          {saving === 'saving' ? 'Saving changes to this pick…' : saving === 'saved' ? 'Saved — collectors see the change now.' : saving}
+        </Typography>
+      )}
       {isOwner && !pick.published && <Alert severity="info" sx={{ mt: 2 }}>This pick is unpublished — only you can see it.</Alert>}
 
       <Stack direction="row" spacing={1.5} useFlexGap sx={{ mt: 3, mb: 2, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -147,9 +207,18 @@ export default function PickPage({
       <Box sx={gridSx}>
         {!inSet && !error ? <SlotSkeletons /> : visible.map((s) => (
           <SlotCard key={s.key} slot={s} owned={owned.has(s.key)} queued={queuedKeys.has(s.key)} tapToOwn
-            onToggleOwned={() => onToggleOwned(s.key)} onAdd={() => {}} />
+            onToggleOwned={() => onToggleOwned(s.key)} onAdd={() => {}}
+            hideAction={isOwner ? {
+              label: pickKeys.has(s.key) && !s.fromRule ? 'Remove from this pick' : 'Hide from this pick',
+              icon: pickKeys.has(s.key) && !s.fromRule ? <CloseIcon fontSize="small" /> : <VisibilityOffOutlinedIcon fontSize="small" />,
+              onClick: () => removeCard(s),
+            } : null} />
         ))}
       </Box>
+      {isOwner && (
+        <AddCardsDialog open={adding} onClose={() => setAdding(false)} game={game} setsInfo={setsInfo}
+          pickedKeys={inSetKeys} owned={owned} onTogglePick={togglePick} onSetMany={setMany} />
+      )}
       {isOwner && (
         <PublishPickDialog open={editing} onClose={() => setEditing(false)} userId={userId} curator={curator}
           existing={pick} source={null} slots={inSet}
