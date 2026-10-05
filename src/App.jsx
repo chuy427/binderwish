@@ -535,13 +535,8 @@ export default function App() {
           <Toolbar sx={{ gap: { xs: 1, sm: 2 } }}>
             <Box component="a" href={BASE} onClick={(e) => { e.preventDefault(); navigate('home'); }} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: 'inherit', textDecoration: 'none', flex: 1, minWidth: 0 }}>
               <LogoMark size={38} />
-              <Box sx={{ minWidth: 0 }}>
-                {/* On phones the binder view's header needs the room for its buttons, so just the logo shows. */}
-                <Wordmark sx={{ display: { xs: toolView ? 'none' : 'block', sm: 'block' }, fontSize: { xs: 22, sm: 25 } }} />
-                <Typography variant="body2" color="text.secondary" noWrap sx={{ display: { xs: 'none', sm: 'block' } }}>
-                  Placeholder cards for your master set binder — scan to find the real one
-                </Typography>
-              </Box>
+              {/* On phones the binder view's header needs the room for its buttons, so just the logo shows. */}
+              <Wordmark sx={{ display: { xs: toolView ? 'none' : 'block', sm: 'block' }, fontSize: { xs: 22, sm: 25 }, minWidth: 0 }} />
             </Box>
             {/* Navigation: labelled buttons on larger screens, a menu on phones. */}
             {navItems.map((n) => (
