@@ -4,7 +4,6 @@ import {
 } from '@mui/material';
 import PrintIcon from '@mui/icons-material/Print';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
-import CollectionsBookmarkIcon from '@mui/icons-material/CollectionsBookmark';
 import GridViewIcon from '@mui/icons-material/GridView';
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import CloseIcon from '@mui/icons-material/Close';
@@ -22,7 +21,7 @@ import { useCloudSync } from './lib/useCloudSync';
 import { ACCOUNTS_ENABLED } from './lib/cloud';
 import { downloadBackup, mergeBackup } from './lib/backup';
 import { DEFAULT_GAME, GAMES, getGame } from './games';
-import { DISPLAY_FONT } from './theme';
+import { LogoMark, Wordmark } from './components/Logo';
 
 // Pages load on demand, so the first visit downloads only what it shows.
 const HomePage = lazy(() => import('./components/HomePage'));
@@ -535,16 +534,10 @@ export default function App() {
           sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: 'rgba(17,17,17,.72)', backdropFilter: 'blur(14px)' }}>
           <Toolbar sx={{ gap: { xs: 1, sm: 2 } }}>
             <Box component="a" href={BASE} onClick={(e) => { e.preventDefault(); navigate('home'); }} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, color: 'inherit', textDecoration: 'none', flex: 1, minWidth: 0 }}>
-              <Box sx={{
-                width: 40, height: 40, borderRadius: '12px', display: 'grid', placeItems: 'center',
-                bgcolor: 'primary.main', color: 'primary.contrastText', flexShrink: 0,
-              }}>
-                <CollectionsBookmarkIcon />
-              </Box>
+              <LogoMark size={38} />
               <Box sx={{ minWidth: 0 }}>
                 {/* On phones the binder view's header needs the room for its buttons, so just the logo shows. */}
-                <Typography component="div" noWrap sx={{ fontFamily: DISPLAY_FONT, fontWeight: 800, fontSize: { xs: 16, sm: 18 }, lineHeight: 1.2, letterSpacing: '-.01em',
-                  display: { xs: toolView ? 'none' : 'block', sm: 'block' } }}>BinderWish</Typography>
+                <Wordmark sx={{ display: { xs: toolView ? 'none' : 'block', sm: 'block' }, fontSize: { xs: 22, sm: 25 } }} />
                 <Typography variant="body2" color="text.secondary" noWrap sx={{ display: { xs: 'none', sm: 'block' } }}>
                   Placeholder cards for your master set binder — scan to find the real one
                 </Typography>

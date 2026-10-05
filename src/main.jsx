@@ -8,6 +8,7 @@ import '@fontsource/roboto/700.css';
 import '@fontsource/unbounded/600.css';
 import '@fontsource/unbounded/700.css';
 import '@fontsource/unbounded/800.css';
+import '@fontsource/urbanist/latin-300.css';
 import './site.css';
 import './print.css';
 import theme from './theme';

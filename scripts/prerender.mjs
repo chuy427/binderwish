@@ -55,13 +55,16 @@ function page(template, { title, description, url, body, jsonLd }) {
     `<meta property="og:title" content="${esc(title)}">`,
     `<meta property="og:description" content="${esc(description)}">`,
     `<meta property="og:url" content="${esc(url)}">`,
-    `<meta property="og:image" content="${SITE}${BASE}icon-512.png">`,
-    `<meta name="twitter:card" content="summary">`,
+    `<meta property="og:image" content="${SITE}${BASE}og.png">`,
+    '<meta property="og:image:width" content="1200">',
+    '<meta property="og:image:height" content="630">',
+    `<meta name="twitter:card" content="summary_large_image">`,
     jsonLd ? `<script type="application/ld+json">${JSON.stringify(jsonLd).replace(/</g, '\\u003c')}</script>` : '',
   ].join('\n  ');
   return template
     .replace(/<title>[\s\S]*?<\/title>/, '')
     .replace(/<meta name="description"[^>]*>/, '')
+    .replace(/\s*<meta (?:property="og:|name="twitter:)[^>]*>/g, '')
     .replace('</head>', `  ${head}\n</head>`)
     .replace('<div id="root"></div>', `<div id="root"><main style="${S.page}">${body}</main></div>`);
 }
