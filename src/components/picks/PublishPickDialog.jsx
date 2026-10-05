@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import {
-  Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, Stack, TextField, Typography,
+  Alert, Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, InputAdornment, Stack, TextField, Typography,
 } from '@mui/material';
+import SearchIcon from '@mui/icons-material/Search';
 import { deletePick, savePick, slugify } from '../../lib/picks';
 import { TOMATO } from '../../theme';
 
@@ -19,14 +20,22 @@ export default function PublishPickDialog({ open, onClose, userId, curator, exis
   const [error, setError] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const choices = (slots || []).filter((s) => s.images?.small).slice(0, 24);
+  const [coverQ, setCoverQ] = useState('');
+  // Every card with art is a possible cover; the filter finds one in a big set.
+  const withArt = (slots || []).filter((s) => s.images?.small);
+  const coverNeedle = coverQ.trim().toLowerCase();
+  const choices = coverNeedle
+    ? withArt.filter((s) => s.name.toLowerCase().includes(coverNeedle) || (s.setName || '').toLowerCase().includes(coverNeedle)
+      || String(s.numberLabel || s.number).toLowerCase().includes(coverNeedle))
+    : withArt;
   useEffect(() => {
     if (!open) return;
     setTitle(existing?.title || source?.cs.name || '');
     setDescription(existing?.description || '');
     setSlug(existing?.slug || slugify(source?.cs.name || ''));
     setSlugTouched(!!existing);
-    setCovers(existing?.covers?.length ? existing.covers : choices.slice(0, 3).map((s) => ({ key: s.key, img: s.images.small })));
+    setCovers(existing?.covers?.length ? existing.covers : withArt.slice(0, 3).map((s) => ({ key: s.key, img: s.images.small })));
+    setCoverQ('');
     setError(null);
     setConfirmDelete(false);
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -68,7 +77,7 @@ export default function PublishPickDialog({ open, onClose, userId, curator, exis
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           {source
             ? <>From your custom set “{source.cs.name}” · {source.slots.length} cards{existing ? ' — updating replaces the pick’s cards with this set’s current ones.' : '.'} </>
-            : 'To change which cards are in it, edit the custom set it was published from and choose Update pick there.'}
+            : 'To change which cards are in it, use Add cards (or a card’s remove button) on the pick’s page.'}
           {' '}Published as <b>{curator?.name}</b>.
         </Typography>
         <Stack spacing={2}>
@@ -78,8 +87,14 @@ export default function PublishPickDialog({ open, onClose, userId, curator, exis
             helperText={`${description.length}/600 — shown on the pick’s page and in search results`}
             onChange={(e) => setDescription(e.target.value.slice(0, 600))} />
           <Box>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Cover cards — choose up to 3</Typography>
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(52px, 1fr))', gap: 0.75 }}>
+            <Stack direction="row" spacing={1.5} sx={{ mb: 1, alignItems: 'center', justifyContent: 'space-between' }}>
+              <Typography variant="body2" color="text.secondary">Cover cards — choose up to 3 ({covers.length} chosen)</Typography>
+              {withArt.length > 12 && (
+                <TextField size="small" type="search" placeholder="Find a card" value={coverQ} onChange={(e) => setCoverQ(e.target.value)} sx={{ width: 180 }}
+                  slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> } }} />
+              )}
+            </Stack>
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(52px, 1fr))', gap: 0.75, maxHeight: 240, overflowY: 'auto', p: 0.5 }}>
               {choices.map((s) => {
                 const i = covers.findIndex((c) => c.key === s.key);
                 return (
@@ -93,6 +108,7 @@ export default function PublishPickDialog({ open, onClose, userId, curator, exis
                 );
               })}
             </Box>
+            {coverNeedle && !choices.length && <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>No cards match “{coverQ}”.</Typography>}
           </Box>
           <TextField label="Address" value={slug} disabled={!!existing} fullWidth
             onChange={(e) => { setSlugTouched(true); setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 80)); }}
