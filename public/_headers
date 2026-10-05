@@ -1,4 +1,17 @@
-# Cloudflare Pages response headers (GitHub Pages ignores this file).
+# Cloudflare Pages response headers.
+#
+# The content security policy is report-only while we confirm nothing legitimate is
+# blocked (violations show in the browser console); rename the header to
+# Content-Security-Policy to enforce it. Card images come from several hosts
+# (TCGdex, Lorcast, TCGPlayer, Bandai), hence https: for images; MUI injects its
+# styles at runtime, hence 'unsafe-inline' for styles.
+/*
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Frame-Options: DENY
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), bluetooth=(), serial=(), hid=()
+  Cross-Origin-Opener-Policy: same-origin
+  Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://tbissnuzjfjuvjwtseza.supabase.co wss://tbissnuzjfjuvjwtseza.supabase.co https://api.tcgdex.net https://api.lorcast.com https://formspree.io https://cloudflareinsights.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+
 /sw.js
   Cache-Control: no-cache
 /version.json
