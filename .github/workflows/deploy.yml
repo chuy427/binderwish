@@ -45,3 +45,16 @@ jobs:
         run: |
           npx --yes wrangler@4 pages project create binderwish --production-branch=main || true
           npx --yes wrangler@4 pages deploy dist --project-name=binderwish --branch=main --commit-dirty=true
+
+      # Supabase pauses free projects after about a week with no activity, which
+      # would break sign-in and sync. The daily build touches both the sign-in
+      # service and the database so the project never goes idle. Uses the same
+      # public (publishable) key the website ships with; never fails the deploy.
+      - name: Keep Supabase active
+        continue-on-error: true
+        env:
+          SUPABASE_URL: https://tbissnuzjfjuvjwtseza.supabase.co
+          SUPABASE_KEY: sb_publishable_d9GuSWBWrka2KDNgUF1N0w_e0cAsznX
+        run: |
+          curl -sS -o /dev/null -w "auth: %{http_code}\n" "$SUPABASE_URL/auth/v1/settings" -H "apikey: $SUPABASE_KEY"
+          curl -sS -o /dev/null -w "database: %{http_code} (401 is expected — the request still reaches it)\n" "$SUPABASE_URL/rest/v1/collections?select=user_id&limit=1" -H "apikey: $SUPABASE_KEY"

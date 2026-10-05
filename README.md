@@ -69,7 +69,9 @@ Cloudflare Pages serves the app for every path (there's no `404.html`), so route
 like `/search`, `/sets/<id>` and `/need` load directly.
 
 Note: GitHub disables scheduled workflows in a public repo after 60 days with
-no commits; re-enable it from the Actions tab if that happens.
+no commits (it emails a warning first); re-enable it from the Actions tab if that
+happens. The daily run also keeps the Supabase project awake (free projects pause
+after about a week idle), so a disabled schedule eventually pauses sign-in too.
 
 ## Disclaimer
 
