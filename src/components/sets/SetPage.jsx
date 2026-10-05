@@ -6,6 +6,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SearchIcon from '@mui/icons-material/Search';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import PrintIcon from '@mui/icons-material/Print';
+import AutoStoriesOutlinedIcon from '@mui/icons-material/AutoStoriesOutlined';
 import BookmarkAddedIcon from '@mui/icons-material/BookmarkAdded';
 import BookmarkAddOutlinedIcon from '@mui/icons-material/BookmarkAddOutlined';
 import { SetLogo, releaseLabel } from './SetTile';
@@ -20,7 +21,7 @@ const money = (n) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2,
 // and, for master sets, every variant — to check off or add to the print sheet.
 export default function SetPage({
   game, setId, setsInfo, variants, owned, queuedKeys, tracked, place = {}, binders = [], locations = [], onSavePlace,
-  onToggleTracked, onToggleOwned, onAdd, onAddMany, onOpenSheet, onBack, backHref,
+  onToggleTracked, onToggleOwned, onAdd, onAddMany, onOpenSheet, onOpenBinder, onBack, backHref,
 }) {
   const set = setsInfo.sets.find((s) => s.id === setId);
   const [slots, setSlotsState] = useState(null);
@@ -105,6 +106,7 @@ export default function SetPage({
         <Button variant={tracked ? 'text' : 'outlined'} startIcon={tracked ? <BookmarkAddedIcon /> : <BookmarkAddOutlinedIcon />} onClick={onToggleTracked}>
           {tracked ? 'In My sets — remove' : 'Add to My sets'}
         </Button>
+        <Button variant="outlined" startIcon={<AutoStoriesOutlinedIcon />} onClick={onOpenBinder}>Binder view</Button>
       </Stack>
 
       <Stack direction="row" spacing={1.5} useFlexGap sx={{ mt: 3, mb: 2, alignItems: 'center', flexWrap: 'wrap' }}>

@@ -14,6 +14,7 @@ import MySetsPage from './components/sets/MySetsPage';
 import SetPage from './components/sets/SetPage';
 import CustomSetPage from './components/sets/CustomSetPage';
 import WantListPage from './components/WantListPage';
+import BinderPage, { layoutParam, parseLayout } from './components/binder/BinderPage';
 import { cleanCustomSets, newCustomSetId } from './lib/customSets';
 import PrintSheetPanel from './components/PrintSheetPanel';
 import PrintArea from './components/PrintArea';
@@ -40,6 +41,8 @@ const DEFAULT_OPTIONS = {
   mySets: [],
   // Custom sets (see lib/customSets.js).
   customSets: [],
+  // Virtual binder layout: pockets per page as columns × rows.
+  binderLayout: { cols: 3, rows: 3 },
 };
 // Each entry can also say where the set is kept: { binder, location }.
 const place = (v) => (typeof v === 'string' ? v.trim().slice(0, 60) : '');
@@ -53,7 +56,12 @@ const cleanMySets = (list) => {
   }
   return [...out.values()];
 };
-const withDefaults = (o) => ({ ...DEFAULT_OPTIONS, ...o, mySets: cleanMySets(o?.mySets), customSets: cleanCustomSets(o?.customSets, GAMES) });
+const withDefaults = (o) => ({
+  ...DEFAULT_OPTIONS, ...o,
+  mySets: cleanMySets(o?.mySets),
+  customSets: cleanCustomSets(o?.customSets, GAMES),
+  binderLayout: parseLayout(o?.binderLayout && layoutParam(o.binderLayout)) || DEFAULT_OPTIONS.binderLayout,
+});
 // Parallel card-data lookups for cards the bundled catalog couldn't match.
 const CONCURRENCY = 4;
 
@@ -80,8 +88,17 @@ function migrateItem(c) {
 // for any path, so deep links and refreshes load it.
 const BASE = import.meta.env.BASE_URL; // "/"
 
-function routeUrl(view, { game, set, q } = {}) {
+function routeUrl(view, { game, set, q, custom, layout, page, card } = {}) {
   if (view === 'privacy') return `${BASE}privacy`;
+  if (view === 'binder') {
+    const params = new URLSearchParams();
+    if (game && game !== DEFAULT_GAME) params.set('game', game);
+    if (layout) params.set('layout', layout);
+    if (page && page > 1) params.set('page', page);
+    if (card) params.set('card', card);
+    const qs = params.toString();
+    return `${BASE}binder/${custom ? `custom/${encodeURIComponent(custom)}` : encodeURIComponent(set)}${qs ? `?${qs}` : ''}`;
+  }
   const gameQs = game && game !== DEFAULT_GAME ? `?game=${game}` : '';
   if (view === 'sets') return `${BASE}sets${gameQs}`;
   if (view === 'need') return `${BASE}need`;
@@ -102,6 +119,15 @@ function readRoute() {
   const path = location.pathname.startsWith(BASE) ? location.pathname.slice(BASE.length) : '';
   const params = new URLSearchParams(location.search);
   const clean = path.replace(/\/$/, '');
+  const binderCustom = clean.startsWith('binder/custom/') ? decodeURIComponent(clean.slice(14)) : null;
+  const binderSet = !binderCustom && clean.startsWith('binder/') ? decodeURIComponent(clean.slice(7)) : null;
+  if (binderCustom || binderSet) {
+    return {
+      view: 'binder', game: GAMES[params.get('game')] ? params.get('game') : DEFAULT_GAME,
+      set: binderSet, custom: binderCustom, layout: parseLayout(params.get('layout')),
+      page: Math.max(1, parseInt(params.get('page'), 10) || 1), card: params.get('card') || null, key: String(Date.now()),
+    };
+  }
   const customPath = clean.startsWith('sets/custom/') ? decodeURIComponent(clean.slice(12)) : null;
   const setPath = !customPath && clean.startsWith('sets/') ? decodeURIComponent(clean.slice(5)) : null;
   return {
@@ -177,6 +203,9 @@ export default function App() {
   const [waitlist, setWaitlist] = useState(null); // null | 'collector' | 'vendor'
   // Routes: <base> = home, <base>search?set=<id>|q=<name> = the tool.
   const [route, setRoute] = useState(readRoute);
+  // A layout in a shared binder link applies to that view only; picking one saves it.
+  const [binderLayoutOverride, setBinderLayoutOverride] = useState(() => (route.view === 'binder' ? route.layout : null));
+  useEffect(() => { setBinderLayoutOverride(route.view === 'binder' ? route.layout : null); }, [route.key]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const onPop = () => setRoute(readRoute());
     window.addEventListener('popstate', onPop);
@@ -189,6 +218,7 @@ export default function App() {
     window.scrollTo(0, 0);
   };
   const view = route.view;
+  const binderLayout = binderLayoutOverride || options.binderLayout;
   // Views with the print sheet (and the header's Print button).
   const toolView = view === 'search' || view === 'set' || view === 'custom';
   // Collection pages (a set, a custom set): no sidebar — the print sheet opens in a drawer.
@@ -525,6 +555,43 @@ export default function App() {
             onVendorWaitlist={WAITLIST_ENABLED ? () => setWaitlist('vendor') : null}
           />
         )}
+        {view === 'binder' && (() => {
+          const cs = route.custom ? options.customSets.find((c) => c.id === route.custom) : null;
+          const binderGame = cs ? getGame(cs.game) : game;
+          const back = cs ? ['custom', { game: cs.game, set: cs.id }] : ['set', { game: route.game, set: route.set }];
+          if (route.custom && !cs) {
+            return (
+              <Container maxWidth="md" sx={{ py: 4 }}>
+                <Typography sx={{ mb: 2 }}>This custom set isn’t in your collection on this device — custom sets are personal, so links to them only open for their owner.</Typography>
+                <Button variant="contained" onClick={() => navigate('sets')}>Go to My sets</Button>
+              </Container>
+            );
+          }
+          return (
+            <Container maxWidth="xl" sx={{ py: 3 }}>
+              <BinderPage
+                key={route.key}
+                game={binderGame}
+                setId={cs ? null : route.set}
+                cs={cs}
+                setsInfo={setsByGame[binderGame.id] || EMPTY_SETS}
+                variants={options.variants}
+                owned={owned}
+                onToggleOwned={toggleOwned}
+                layout={binderLayout}
+                onLayout={(l) => { setBinderLayoutOverride(null); setOption('binderLayout', l); }}
+                initialPage={route.page}
+                initialCard={route.card}
+                backLabel={cs ? cs.name : 'Back to set'}
+                onBack={() => navigate(...back)}
+                shareUrl={({ page, card }) => `${location.origin}${routeUrl('binder', { game: binderGame.id, set: route.set, custom: route.custom, layout: layoutParam(binderLayout), page, card })}`}
+                onState={({ page, card }) => history.replaceState(null, '', routeUrl('binder', {
+                  game: binderGame.id, set: route.set, custom: route.custom, layout: layoutParam(binderLayout), page, card,
+                }))}
+              />
+            </Container>
+          );
+        })()}
         {view === 'need' && (
           <WantListPage
             sources={wantSources}
@@ -578,6 +645,7 @@ export default function App() {
                 onToggleOwned={toggleOwned}
                 onAddMany={(slots) => { addMany(slots, { track: false }); setSheetOpen(true); }}
                 onOpenSheet={() => setSheetOpen(true)}
+                onOpenBinder={() => navigate('binder', { game: route.game, custom: route.set })}
                 backHref={routeUrl('sets', { game: route.game })}
                 onBack={() => navigate('sets', { game: route.game })}
               />
@@ -600,6 +668,7 @@ export default function App() {
                 onAdd={togglePrint}
                 onAddMany={(slots) => { addMany(slots); setSheetOpen(true); }}
                 onOpenSheet={() => setSheetOpen(true)}
+                onOpenBinder={() => navigate('binder', { game: route.game, set: route.set })}
                 backHref={routeUrl('sets', { game: route.game })}
                 onBack={() => navigate('sets', { game: route.game })}
               />

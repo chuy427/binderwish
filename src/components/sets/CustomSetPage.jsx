@@ -7,6 +7,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SearchIcon from '@mui/icons-material/Search';
 import PlaylistAddIcon from '@mui/icons-material/PlaylistAdd';
 import PrintIcon from '@mui/icons-material/Print';
+import AutoStoriesOutlinedIcon from '@mui/icons-material/AutoStoriesOutlined';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
@@ -26,7 +27,7 @@ const money = (n) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2,
 // hand-picked cards, minus the ones hidden. Tap to own, like any set page.
 export default function CustomSetPage({
   cs, game, setsInfo, variants, owned, queuedKeys, onUpdate, onDelete, binders = [], locations = [],
-  onToggleOwned, onAddMany, onOpenSheet, onBack, backHref,
+  onToggleOwned, onAddMany, onOpenSheet, onOpenBinder, onBack, backHref,
 }) {
   const [all, setAll] = useState(null);
   const [error, setError] = useState(null);
@@ -134,6 +135,7 @@ export default function CustomSetPage({
           </Button>
         )}
         <Button variant="outlined" startIcon={<AddIcon />} onClick={() => setAdding(true)}>Add cards</Button>
+        <Button variant="outlined" startIcon={<AutoStoriesOutlinedIcon />} onClick={onOpenBinder}>Binder view</Button>
         <Button color="inherit" startIcon={<EditIcon />} onClick={() => setEditing(true)}>Edit</Button>
         <Button color="error" startIcon={<DeleteOutlinedIcon />} onClick={() => setConfirmDelete(true)}>Delete</Button>
       </Stack>
