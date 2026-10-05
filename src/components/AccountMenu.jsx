@@ -11,6 +11,7 @@ import CloudDoneIcon from '@mui/icons-material/CloudDone';
 import CloudSyncIcon from '@mui/icons-material/CloudSync';
 import CloudOffIcon from '@mui/icons-material/CloudOff';
 import { deleteAccount, sendSignInLink, signOut, takeLinkError, verifyCode } from '../lib/cloud';
+import { useTurnstile } from '../lib/turnstile';
 
 export const OPEN_SIGN_IN = 'binderwish:open-sign-in';
 export const openSignIn = () => window.dispatchEvent(new Event(OPEN_SIGN_IN));
@@ -100,13 +101,14 @@ function SignInDialog({ open, onClose, onPrivacy, linkProblem }) {
   const [error, setError] = useState(null);
   const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   const codeOk = /^\d{6,10}$/.test(code.replace(/\s/g, ''));
+  const turnstile = useTurnstile();
 
   const close = () => { onClose(); setTimeout(() => { setState('idle'); setError(null); setCode(''); }, 200); };
   async function send(e) {
     e?.preventDefault();
     if (!valid || state === 'sending') return;
     setState('sending'); setError(null); setCode('');
-    try { await sendSignInLink(email.trim()); setState('sent'); }
+    try { await sendSignInLink(email.trim(), await turnstile.getToken()); setState('sent'); }
     catch (err) { setError(err.message); setState('idle'); }
   }
   async function verify(e) {
@@ -178,6 +180,8 @@ function SignInDialog({ open, onClose, onPrivacy, linkProblem }) {
           </DialogActions>
         </Box>
       )}
+      {/* Turnstile check for the sign-in email: invisible unless Cloudflare asks for a tap. */}
+      <Box ref={turnstile.ref} sx={{ display: 'flex', justifyContent: 'center', '&:not(:empty)': { pb: 2 } }} />
     </Dialog>
   );
 }

@@ -31,10 +31,12 @@ export const supabase = createClient(URL, KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'implicit' },
 });
 
-export async function sendSignInLink(email) {
+// captchaToken: a Turnstile token (see lib/turnstile.js), required once CAPTCHA
+// protection is on in Supabase.
+export async function sendSignInLink(email, captchaToken) {
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { emailRedirectTo: `${location.origin}${location.pathname}${location.search}` },
+    options: { emailRedirectTo: `${location.origin}${location.pathname}${location.search}`, captchaToken },
   });
   if (error) throw new Error(friendlyError(error));
 }
@@ -59,6 +61,7 @@ export async function deleteAccount() {
 function friendlyError(error) {
   if (error.status === 429 || /rate limit/i.test(error.message)) return 'Too many sign-in emails just now — please wait a few minutes and try again.';
   if (/invalid.*email/i.test(error.message)) return 'That email address doesn’t look right.';
+  if (/captcha/i.test(error.message)) return 'The security check didn’t go through — please try again.';
   return error.message || 'Something went wrong — please try again.';
 }
 
