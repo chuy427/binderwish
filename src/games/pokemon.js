@@ -104,7 +104,7 @@ const pokemon = {
     return out;
   },
 
-  matchProducts: (rows, card) => matchByNumberAndName(rows, card.number, card.name),
+  matchProducts: (rows, card, cards) => matchByNumberAndName(rows, card.number, card.name, cards),
 
   numberLabel(card, setsInfo) {
     const official = setsInfo.official?.get(card.setId);
