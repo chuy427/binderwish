@@ -2,7 +2,7 @@
 // Lorcast asks for 50–100ms between requests; the response cache means the app
 // only makes a handful per session (set list, one per set browsed, searches).
 import { getJSON, TTL } from '../lib/cache';
-import { matchByNumberAndName } from '../catalog';
+import { matchLorcana } from '../lib/match';
 
 const API = 'https://api.lorcast.com/v0';
 
@@ -71,12 +71,9 @@ const lorcana = {
     return { cards: (results || []).map(toCard), hasMore: false };
   },
 
-  // Lorcast already knows each card's TCGPlayer product; fall back to number + name
-  // for brand-new sets it hasn't linked yet.
-  matchProducts(rows, card) {
-    const exact = card.tcgplayerId ? rows.filter((r) => r[1] === card.tcgplayerId) : [];
-    return exact.length ? exact : matchByNumberAndName(rows, card.number, card.name);
-  },
+  // Lorcast's own TCGPlayer product id first; otherwise by name and version (for
+  // brand-new sets it hasn't linked yet) — see lib/match.js.
+  matchProducts: (rows, card, cards) => matchLorcana(rows, card, cards),
 
   specialVariant: (card) => SPECIAL_RARITIES[card.rarity] || '',
 

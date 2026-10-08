@@ -7,7 +7,8 @@
 //               differently on TCGdex and TCGPlayer)
 //   mismatch    a card matched to a product with a clearly different name
 //   unmatched   cards in a recent set (released in the last 6 months) with no
-//               product — no price, link or (often) art
+//               product — no price, link or (often) art. Listed as notes, not
+//               problems: usually TCGPlayer just hasn't listed them yet
 //
 // Reads the catalog the build just synced (public/tcgplayer) and the card lists
 // from TCGdex / Lorcast. Writes a Markdown report (--out) and, in GitHub Actions,
@@ -18,7 +19,7 @@
 import { appendFile, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { matchByNumberAndName, normName } from '../src/lib/match.js';
+import { matchByNumberAndName, matchLorcana, normName } from '../src/lib/match.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CATALOG = path.join(ROOT, 'public', 'tcgplayer');
@@ -129,15 +130,12 @@ async function lorcana(ignore) {
       continue;
     }
     const rows = await groupRows('lorcana', groups);
-    // As in src/games/lorcana.js: Lorcast's own product id first, then number + name.
-    const cards = list.map((c) => {
-      const exact = c.tcgplayer_id ? rows.find((r) => r[1] === c.tcgplayer_id) : null;
-      const full = c.version ? `${c.name} - ${c.version}` : c.name;
-      return {
-        number: c.collector_number, name: full, matchName: c.name, image: c.image_uris?.digital?.small,
-        product: exact || matchByNumberAndName(rows, c.collector_number, full)[0] || null,
-      };
-    });
+    // Exactly as src/games/lorcana.js does it.
+    const base = list.map((c) => ({
+      number: c.collector_number, name: c.version ? `${c.name} – ${c.version}` : c.name, tcgplayerId: c.tcgplayer_id || null,
+      matchName: c.name, image: c.image_uris?.digital?.small,
+    }));
+    const cards = base.map((c) => ({ ...c, product: matchLorcana(rows, c, base)[0] || null }));
     const problems = checkSet(cards);
     if (isRecent(s.released_at)) {
       const missing = cards.filter((c) => !c.product);
@@ -158,8 +156,9 @@ async function main() {
     .map((s) => ({ ...s, problems: s.problems.filter((p) => !p.number || !ignoreCards.has(`${s.setId}#${p.number}`)) }));
   // Sets that couldn't be checked (source down) are listed, but aren't problems.
   const failed = sets.filter((s) => s.problems.some((p) => p.kind === 'error'));
-  const bad = sets.filter((s) => s.problems.some((p) => p.kind !== 'error'))
-    .map((s) => ({ ...s, problems: s.problems.filter((p) => p.kind !== 'error') }));
+  const isProblem = (p) => p.kind === 'duplicate' || p.kind === 'mismatch';
+  const bad = sets.filter((s) => s.problems.some(isProblem)).map((s) => ({ ...s, problems: s.problems.filter(isProblem) }));
+  const notes = sets.filter((s) => s.problems.some((p) => p.kind === 'unmatched'));
   const count = bad.reduce((t, s) => t + s.problems.length, 0);
 
   const label = { duplicate: 'Duplicate', mismatch: 'Wrong card?', unmatched: 'Unmatched', error: 'Error' };
@@ -173,6 +172,11 @@ async function main() {
     lines.push(`### ${s.game} · ${s.name} (\`${s.setId}\`)`);
     for (const p of s.problems.slice(0, 40)) lines.push(`- **${label[p.kind]}:** ${p.text}`);
     if (s.problems.length > 40) lines.push(`- …and ${s.problems.length - 40} more`);
+    lines.push('');
+  }
+  if (notes.length) {
+    lines.push('#### Waiting for TCGPlayer (new cards with no listing yet — not counted as problems)');
+    for (const n of notes) for (const p of n.problems.filter((x) => x.kind === 'unmatched')) lines.push(`- ${n.game} · ${n.name}: ${p.text}`);
     lines.push('');
   }
   if (failed.length) lines.push(`Couldn’t check ${failed.length} set${failed.length === 1 ? '' : 's'} (source unavailable): ${failed.map((s) => s.name).join(', ')}.`, '');

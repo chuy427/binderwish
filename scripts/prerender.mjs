@@ -19,6 +19,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { matchLorcana } from '../src/lib/match.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'dist');
@@ -119,12 +120,10 @@ async function lorcanaSets() {
     if (!groups) continue;
     await sleep(100); // Lorcast asks for 50–100ms between requests
     const cards = await getJSON(`https://api.lorcast.com/v0/sets/${encodeURIComponent(s.code)}/cards`);
-    const products = new Map((await groupRows('lorcana', groups)).map((r) => [r[1], r]));
-    const entries = cards.map((c) => ({
-      num: c.collector_number,
-      name: c.version ? `${c.name} – ${c.version}` : c.name,
-      versions: versionsOf(products.get(c.tcgplayer_id)?.[3]),
-    }));
+    const rows = (await groupRows('lorcana', groups)).filter((r) => r[3] && typeof r[3] === 'object');
+    // Matched exactly as in the app (src/lib/match.js).
+    const list = cards.map((c) => ({ number: c.collector_number, name: c.version ? `${c.name} – ${c.version}` : c.name, tcgplayerId: c.tcgplayer_id || null }));
+    const entries = list.map((c) => ({ num: c.number, name: c.name, versions: versionsOf(matchLorcana(rows, c, list)[0]?.[3]) }));
     const main = /^\d+$/.test(s.code);
     out.push({ setId: s.code, name: s.name, series: main ? 'Main sets' : 'Promos & special', released: s.released_at || '', logo: '', entries });
   }
