@@ -6,6 +6,7 @@ import {
 import PersonOutlineIcon from '@mui/icons-material/PersonOutlined';
 import MarkEmailReadIcon from '@mui/icons-material/MarkEmailRead';
 import LogoutIcon from '@mui/icons-material/Logout';
+import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import CloudDoneIcon from '@mui/icons-material/CloudDone';
 import CloudSyncIcon from '@mui/icons-material/CloudSync';
@@ -24,7 +25,7 @@ const STATUS = {
 };
 
 // Header control: "Sign in" for guests; an avatar with a sync menu once signed in.
-export default function AccountMenu({ sync, onPrivacy }) {
+export default function AccountMenu({ sync, onPrivacy, onAlerts }) {
   const { user, status, retry } = sync;
   const [signInOpen, setSignInOpen] = useState(false);
   // Arrived from a sign-in link that was already used or has expired: say so.
@@ -82,6 +83,11 @@ export default function AccountMenu({ sync, onPrivacy }) {
           {status === 'error' && <Button size="small" onClick={retry} sx={{ mt: 0.5, px: 0 }}>Try again</Button>}
         </Box>
         <Divider />
+        {onAlerts && (
+          <MenuItem onClick={() => { setAnchor(null); onAlerts(); }}>
+            <ListItemIcon><NotificationsNoneIcon fontSize="small" /></ListItemIcon>Price alerts
+          </MenuItem>
+        )}
         <MenuItem onClick={() => { setAnchor(null); signOut(); }}>
           <ListItemIcon><LogoutIcon fontSize="small" /></ListItemIcon>Sign out
         </MenuItem>

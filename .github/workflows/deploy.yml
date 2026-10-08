@@ -60,6 +60,19 @@ jobs:
           curl -sS -o /dev/null -w "auth: %{http_code}\n" "$SUPABASE_URL/auth/v1/settings" -H "apikey: $SUPABASE_KEY"
           curl -sS -o /dev/null -w "database: %{http_code} (401 is expected — the request still reaches it)\n" "$SUPABASE_URL/rest/v1/collections?select=user_id&limit=1" -H "apikey: $SUPABASE_KEY"
 
+      # Price alerts (scripts/check-alerts.mjs): compares every active alert with the
+      # prices this build just synced and emails one digest per collector. Needs the
+      # repository secrets SUPABASE_SECRET_KEY (Supabase → Project Settings → API Keys →
+      # secret key) and RESEND_API_KEY; skipped until they're set. Nightly only.
+      - name: Send price alerts
+        if: github.event_name != 'push'
+        continue-on-error: true
+        env:
+          SUPABASE_URL: https://tbissnuzjfjuvjwtseza.supabase.co
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: node scripts/check-alerts.mjs
+
       # Nightly card-matching check (scripts/check-matching.mjs): runs the site's own
       # card ↔ TCGPlayer matching over every Pokémon and Lorcana set and reports
       # duplicates, wrong-looking matches and unmatched cards in new sets. Keeps one

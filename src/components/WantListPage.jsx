@@ -6,12 +6,15 @@ import {
 import SearchIcon from '@mui/icons-material/Search';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlined';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
+import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import CloudOffIcon from '@mui/icons-material/CloudOff';
 import CloudDoneIcon from '@mui/icons-material/CloudDone';
 import CollectionsBookmarkOutlinedIcon from '@mui/icons-material/CollectionsBookmarkOutlined';
 import { useWantList } from '../lib/useWantList';
 import { tcgplayerUrl } from '../catalog';
+import { alertTargets, useAlertsContext } from '../lib/alerts';
 import { DISPLAY_FONT } from '../theme';
 
 const money = (n) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -65,6 +68,22 @@ export default function WantListPage({ sources, getSetsInfo, variants, owned, on
 
   const toggleGroup = (id) => setClosed((c) => { const n = new Set(c); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
+  const alerts = useAlertsContext();
+  const bell = (s) => {
+    if (!alerts?.enabled || !s.tcgplayerId) return null;
+    const a = alerts.byKey.get(s.key);
+    return a ? (
+      <Chip size="small" clickable icon={<NotificationsActiveIcon />} label={alertTargets(a)} onClick={() => alerts.open(s)}
+        color={a.status === 'hit' ? 'warning' : 'primary'} variant="outlined" sx={{ flexShrink: 0, display: { xs: 'none', sm: 'inline-flex' } }} />
+    ) : (
+      <Tooltip title="Set a price alert">
+        <IconButton size="small" onClick={() => alerts.open(s)} aria-label={`Set a price alert: ${s.name}`} sx={{ color: 'text.secondary' }}>
+          <NotificationsNoneIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+    );
+  };
+
   const row = (s, showSet) => (
     <Stack key={s.key} direction="row" spacing={1} sx={{ alignItems: 'center', py: 0.75, px: { xs: 0.5, sm: 1 }, borderTop: '1px solid rgba(255,255,255,.06)' }}>
       <Tooltip title="Got it — mark as owned">
@@ -79,6 +98,12 @@ export default function WantListPage({ sources, getSetsInfo, variants, owned, on
           #{s.numberLabel}{s.variantLabel ? ` · ${s.variantLabel}` : ''}{showSet && s.setName ? ` · ${s.setName}` : ''}
         </Typography>
       </Box>
+      {bell(s)}
+      {alerts?.byKey.get(s.key) && (
+        <IconButton size="small" onClick={() => alerts.open(s)} aria-label={`Edit price alert: ${s.name}`} sx={{ color: 'primary.main', display: { xs: 'inline-flex', sm: 'none' } }}>
+          <NotificationsActiveIcon fontSize="small" />
+        </IconButton>
+      )}
       <Typography sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', minWidth: 64, textAlign: 'right' }}>
         {s.price != null ? money(s.price) : '—'}
       </Typography>

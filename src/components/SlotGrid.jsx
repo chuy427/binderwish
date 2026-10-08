@@ -4,7 +4,10 @@ import RadioButtonUncheckedIcon from '@mui/icons-material/RadioButtonUnchecked';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import PrintIcon from '@mui/icons-material/Print';
+import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
+import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import CardImg from './CardImg';
+import { alertTargets, useAlertsContext } from '../lib/alerts';
 
 // The card grid shared by search and the set pages: one tile per binder slot,
 // with an owned toggle and tap-to-print.
@@ -30,6 +33,10 @@ export function SlotSkeletons({ count = 12 }) {
 // hideAction: { label, icon, onClick } — a small extra button (custom sets: hide / remove).
 export function SlotCard({ slot, owned, queued, onToggleOwned, onAdd, tapToOwn = false, picking = null, hideAction = null }) {
   if (picking) queued = picking.picked;
+  // Price alert bell (signed-in collectors; not while picking cards for a set).
+  const alerts = useAlertsContext();
+  const alert = alerts?.byKey.get(slot.key);
+  const showBell = alerts?.enabled && !picking && slot.tcgplayerId;
   return (
     <Card
       sx={{
@@ -86,6 +93,18 @@ export function SlotCard({ slot, owned, queued, onToggleOwned, onAdd, tapToOwn =
             sx={{ position: 'absolute', top: 44, left: 12, bgcolor: 'background.paper', boxShadow: 2, p: 0.25, color: 'text.secondary',
               opacity: { xs: 1, md: 0 }, transition: 'opacity .15s', '.MuiCard-root:hover &, &:focus-visible': { opacity: 1 }, '&:hover': { bgcolor: 'background.paper' } }}>
             {hideAction.icon}
+          </IconButton>
+        </Tooltip>
+      )}
+      {showBell && (
+        <Tooltip title={alert ? `Price alert: ${alertTargets(alert)}${alert.status === 'hit' ? ' (reached)' : alert.status === 'paused' ? ' (paused)' : ''}` : 'Set a price alert'}>
+          <IconButton size="small" onClick={() => alerts.open(slot)}
+            aria-label={`${alert ? 'Edit price alert' : 'Set a price alert'}: ${slot.name}${slot.variantLabel ? ` (${slot.variantLabel})` : ''}`}
+            sx={{ position: 'absolute', top: hideAction ? 76 : 44, left: 12, bgcolor: 'background.paper', boxShadow: 2, p: 0.25,
+              color: alert ? 'primary.main' : 'text.secondary', outline: alert ? '1.5px solid' : 'none', outlineColor: 'primary.main',
+              opacity: alert ? 1 : { xs: 1, md: 0 }, transition: 'opacity .15s', '.MuiCard-root:hover &, &:focus-visible': { opacity: 1 },
+              '&:hover': { bgcolor: 'background.paper' } }}>
+            {alert ? <NotificationsActiveIcon fontSize="small" /> : <NotificationsNoneIcon fontSize="small" />}
           </IconButton>
         </Tooltip>
       )}

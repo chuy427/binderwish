@@ -25,6 +25,7 @@ import { downloadBackup, mergeBackup } from './lib/backup';
 import { DEFAULT_GAME, GAMES, getGame } from './games';
 import { LogoMark, Wordmark } from './components/Logo';
 import { fetchCurator, fetchMyPicks, findPick, pickToCs, usePicks } from './lib/picks';
+import { AlertsContext, useAlerts } from './lib/alerts';
 
 // Pages load on demand, so the first visit downloads only what it shows.
 const HomePage = lazy(() => import('./components/HomePage'));
@@ -41,6 +42,8 @@ const PrintSheetPanel = lazy(() => import('./components/PrintSheetPanel'));
 const BackupSection = lazy(() => import('./components/BackupSection'));
 const WaitlistDialog = lazy(() => import('./components/WaitlistDialog'));
 const PickPage = lazy(() => import('./components/picks/PickPage'));
+const AlertsPage = lazy(() => import('./components/alerts/AlertsPage'));
+const AlertDialog = lazy(() => import('./components/alerts/AlertDialog'));
 const PicksIndexPage = lazy(() => import('./components/picks/PicksIndexPage'));
 
 const PageLoading = () => (
@@ -116,6 +119,7 @@ const BASE = import.meta.env.BASE_URL; // "/"
 function routeUrl(view, { game, set, q, custom, pick, layout, page, card } = {}) {
   if (view === 'privacy') return `${BASE}privacy`;
   if (view === 'picks') return `${BASE}picks`;
+  if (view === 'alerts') return `${BASE}alerts`;
   if (view === 'pick') return `${BASE}picks/${encodeURIComponent(set)}`;
   if (view === 'binderIndex') return `${BASE}binder${game && game !== DEFAULT_GAME ? `?game=${game}` : ''}`;
   if (view === 'binder') {
@@ -170,10 +174,12 @@ function readRoute() {
   if (gamePrefix && GAMES[gamePrefix[1]]) [, game, setPath] = gamePrefix;
   else if (setPath && !customPath && game !== DEFAULT_GAME) history.replaceState(null, '', routeUrl('set', { game, set: setPath }));
   return {
-    view: customPath ? 'custom' : setPath ? 'set' : ({ search: 'search', privacy: 'privacy', sets: 'sets', need: 'need', binder: 'binderIndex', picks: 'picks' })[clean] || 'home',
+    view: customPath ? 'custom' : setPath ? 'set' : ({ search: 'search', privacy: 'privacy', sets: 'sets', need: 'need', binder: 'binderIndex', picks: 'picks', alerts: 'alerts' })[clean] || 'home',
     game,
     set: customPath || setPath || params.get('set') || null,
     q: params.get('q') || '',
+    // The alert email's "Turn off alert emails" link: /alerts?unsubscribe=<token>.
+    unsubscribe: params.get('unsubscribe') || null,
     // Remounts the search panel when arriving from somewhere else (home, back/forward).
     key: `${params.get('game') || ''}|${params.get('set') || ''}|${params.get('q') || ''}|${Date.now()}`,
   };
@@ -286,6 +292,7 @@ export default function App() {
       privacy: 'Privacy policy | BinderWish',
       binderIndex: 'Virtual binder | BinderWish',
       picks: 'BinderWish picks — curated sets to collect | BinderWish',
+      alerts: 'Price alerts | BinderWish',
       pick: routePick && `${routePick.title} | BinderWish picks`,
       set: titleSetName && `${titleSetName} master set checklist | BinderWish`,
       custom: titleCustom && `${titleCustom} | BinderWish`,
@@ -593,6 +600,19 @@ export default function App() {
     }).catch(() => {});
   }, [userId]);
   useEffect(() => { refreshMyPicks(); }, [refreshMyPicks]);
+
+  // Price alerts (signed-in collectors): the bell on cards opens the dialog.
+  const alertsApi = useAlerts(ACCOUNTS_ENABLED ? userId : null);
+  const [alertSlot, setAlertSlot] = useState(null);
+  const alertsByKey = useMemo(() => new Map(alertsApi.alerts.map((a) => [a.slot_key, a])), [alertsApi.alerts]);
+  const alertsCtx = useMemo(() => ({
+    enabled: ACCOUNTS_ENABLED,
+    byKey: alertsByKey,
+    open: (slot) => {
+      if (!userId) { openSignIn(); setToast('Sign in to set price alerts — they’re emailed to you'); return; }
+      setAlertSlot(slot);
+    },
+  }), [alertsByKey, userId]);
   const setsActive = view === 'sets' || view === 'set' || view === 'custom';
   const picksNav = picksState.picks.length > 0 || myPicks.length > 0
     ? [{ label: 'Picks', icon: <AutoAwesomeOutlinedIcon />, go: () => navigate('picks'), active: view === 'picks' || view === 'pick' }] : [];
@@ -617,7 +637,7 @@ export default function App() {
   ];
 
   return (
-    <>
+    <AlertsContext.Provider value={alertsCtx}>
       <GlobalStyles styles={`@page { size: ${options.paper === 'a4' ? 'A4' : 'letter'} portrait; margin: 0; }`} />
 
       <Box className="no-print" sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -678,7 +698,7 @@ export default function App() {
               </>
             )}
             {/* Account sits at the far right of the header. */}
-            {ACCOUNTS_ENABLED && <AccountMenu sync={sync} onPrivacy={() => navigate('privacy')} />}
+            {ACCOUNTS_ENABLED && <AccountMenu sync={sync} onPrivacy={() => navigate('privacy')} onAlerts={() => navigate('alerts')} />}
           </Toolbar>
         </AppBar>
 
@@ -700,6 +720,10 @@ export default function App() {
         {view === 'picks' && (
           <PicksIndexPage pickHref={(slug) => routeUrl('pick', { set: slug })} onOpenPick={(slug) => navigate('pick', { set: slug })}
             followed={new Set(options.followedPicks.map((f) => f.slug))} />
+        )}
+        {view === 'alerts' && (
+          <AlertsPage api={alertsApi} userId={userId} signedIn={signedIn} onSignIn={ACCOUNTS_ENABLED ? openSignIn : null}
+            onEdit={(slot) => setAlertSlot(slot)} unsubscribeToken={route.unsubscribe} />
         )}
         {view === 'binderIndex' && (
           <BinderIndexPage
@@ -945,10 +969,21 @@ export default function App() {
       </Box>
 
       <Suspense fallback={null}>
+        {alertSlot && (
+          <AlertDialog slot={alertSlot} existing={alertsByKey.get(alertSlot.key) || null} count={alertsApi.alerts.length}
+            onClose={() => setAlertSlot(null)}
+            onSave={async (targets) => {
+              const had = alertsByKey.get(alertSlot.key);
+              await alertsApi.save(alertSlot, targets, had);
+              setAlertSlot(null);
+              setToast(had ? 'Price alert updated' : { message: 'Price alert set — we’ll email you', action: { label: 'My alerts', onClick: () => navigate('alerts') } });
+            }}
+            onDelete={async () => { await alertsApi.remove(alertsByKey.get(alertSlot.key).id); setAlertSlot(null); setToast('Price alert deleted'); }} />
+        )}
         {waitlist && <WaitlistDialog open audience={waitlist} onClose={() => setWaitlist(null)} queue={queue} count={stats.count} />}
         {printing && <PrintArea queue={queue} options={options} getSetsInfo={getSetsInfo} onDone={() => setPrinting(false)} />}
       </Suspense>
-    </>
+    </AlertsContext.Provider>
   );
 }
 

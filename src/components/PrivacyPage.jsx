@@ -2,7 +2,7 @@ import { Box, Container, Link, Typography } from '@mui/material';
 
 // Where people send access/removal requests. Set before publishing the waitlist.
 export const CONTACT_EMAIL = 'hello@binderwish.com'; // forwarded to the owner's inbox (Cloudflare Email Routing)
-const EFFECTIVE_DATE = 'October 5, 2026';
+const EFFECTIVE_DATE = 'October 8, 2026';
 
 function Contact() {
   return CONTACT_EMAIL
@@ -51,6 +51,14 @@ export default function PrivacyPage() {
         account menu, which permanently deletes your email and collection.
       </P>
 
+      <H>Price alerts</H>
+      <P>
+        If you set a price alert, we store the card and the target price with your account, check it once a day against
+        TCGPlayer market prices, and email you (from noreply@binderwish.com, sent through{' '}
+        <Link href="https://resend.com/legal/privacy-policy" target="_blank" rel="noopener">Resend</Link>) when the price is
+        reached. Every alert email has a link to turn alert emails off. Deleting an alert — or your account — deletes it.
+      </P>
+
       <H>The printing waitlist</H>
       <P>
         If you join the “Get them printed” waitlist, we collect your email address and, if you provide them, roughly
@@ -72,7 +80,8 @@ export default function PrivacyPage() {
         <li><b>Cloudflare</b> hosts the site and provides Web Analytics: privacy-first visit counts (which pages are viewed, the referring site, country and device type) with no cookies and nothing that identifies you or follows you across sites (<Link href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">Cloudflare’s privacy policy</Link>).</li>
         <li><b>TCGdex</b> (Pokémon) and <b>Lorcast</b> (Lorcana) provide card lists, search and images. Your searches are sent to them to get results.</li>
         <li><b>TCGPlayer</b>: its image servers supply One Piece card images, and you visit TCGPlayer itself when you open a card link or scan a placeholder’s QR code (<Link href="https://www.tcgplayer.com/privacy-policy" target="_blank" rel="noopener">TCGPlayer’s privacy policy</Link>).</li>
-        <li><b>Supabase</b>, only if you sign in, to store and sync your account.</li>
+        <li><b>Supabase</b>, only if you sign in, to store and sync your account (and any price alerts).</li>
+        <li><b>Resend</b> delivers sign-in and price alert emails, only if you sign in.</li>
         <li><b>Formspree</b>, only if you submit the waitlist form.</li>
       </Box>
       <P>
