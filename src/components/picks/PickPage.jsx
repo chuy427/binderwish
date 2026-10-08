@@ -40,6 +40,8 @@ export default function PickPage({
   const [draft, setDraft] = useState(null); // { picks, hidden } not yet saved
   const [saving, setSaving] = useState(null); // null | 'saving' | 'saved' | error message
   const saveTimer = useRef(null);
+  // Cards added this visit, shown right away (the full list reloads in the background).
+  const [extra, setExtra] = useState([]);
   const cs = useMemo(() => pickToCs(pick && draft ? { ...pick, definition: { ...pick.definition, ...draft } } : pick), [pick, draft]);
   const defKey = cs ? JSON.stringify([cs.names, cs.artists, cs.picks.map((p) => p.key), variants]) : '';
 
@@ -48,16 +50,21 @@ export default function PickPage({
     let cancelled = false;
     setError(null);
     customSetSlots(game, cs, setsInfo, variants)
-      .then((s) => { if (!cancelled) setAll(s); })
+      .then((s) => { if (!cancelled) { setAll(s); setExtra([]); } })
       .catch((e) => { if (!cancelled) setError(`Couldn’t load this pick (${e.message}). Try again in a moment.`); });
     return () => { cancelled = true; };
   }, [defKey, setsInfo]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Follows the curator's edits at once: the loaded cards plus any just added, minus
+  // anything taken out (cs already includes unsaved edits).
   const inSet = useMemo(() => {
     if (!all) return null;
     const hidden = new Set(cs.hidden);
-    return all.filter((s) => !hidden.has(s.key));
-  }, [all, cs]);
+    const picked = new Set(cs.picks.map((p) => p.key));
+    const have = new Set(all.map((s) => s.key));
+    return [...all, ...extra.filter((s) => !have.has(s.key))]
+      .filter((s) => (s.fromRule || picked.has(s.key)) && !hidden.has(s.key));
+  }, [all, extra, cs]);
   const inSetKeys = useMemo(() => new Set((inSet || []).map((s) => s.key)), [inSet]);
 
   // ---------- Curator editing ----------
@@ -79,8 +86,13 @@ export default function PickPage({
     }, 800);
   }
   useEffect(() => () => clearTimeout(saveTimer.current), []);
-  // Once the saved pick comes back, it replaces the draft.
-  useEffect(() => { if (saving === 'saved') setDraft(null); }, [pick]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Once the server's copy matches the edits, it replaces the draft (not before — a
+  // save that finishes while newer taps are pending mustn't wipe them).
+  useEffect(() => {
+    if (!draft || !pick) return;
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    if (same(pick.definition.picks, draft.picks) && same(pick.definition.hidden, draft.hidden)) setDraft(null);
+  }, [pick]); // eslint-disable-line react-hooks/exhaustive-deps
   const def = () => draft || { picks: cs.picks, hidden: cs.hidden };
   const pickKeys = new Set(cs?.picks.map((p) => p.key) || []);
   const removeCard = (s) => {
@@ -92,15 +104,17 @@ export default function PickPage({
   const setMany = (list, add) => {
     let { picks, hidden } = def();
     picks = [...picks]; hidden = [...hidden];
+    const added = [];
     for (const s of list) {
       if (add && !inSetKeys.has(s.key)) {
         if (hidden.includes(s.key)) hidden = hidden.filter((k) => k !== s.key);
-        else picks.push({ setId: s.setId, key: s.key });
+        else if (!picks.some((p) => p.key === s.key)) { picks.push({ setId: s.setId, key: s.key }); added.push({ ...s, picked: true }); }
       } else if (!add && inSetKeys.has(s.key)) {
         if (picks.some((p) => p.key === s.key)) picks = picks.filter((p) => p.key !== s.key);
         else hidden.push(s.key);
       }
     }
+    if (added.length) setExtra((e) => [...e, ...added]);
     change({ picks, hidden });
   };
   const togglePick = (s) => setMany([s], !inSetKeys.has(s.key));
