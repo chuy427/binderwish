@@ -4,10 +4,10 @@ import {
   Stack, TextField, Typography,
 } from '@mui/material';
 import CardImg from '../CardImg';
-import { ALERT_LIMIT, usd } from '../../lib/alerts';
+import { usd } from '../../lib/alerts';
 
 // Set (or change) a price alert on one card version: drops to and/or rises to.
-export default function AlertDialog({ slot, existing, count, onSave, onDelete, onClose }) {
+export default function AlertDialog({ slot, existing, count, limit, onSave, onDelete, onClose }) {
   const price = slot?.price ?? null;
   const [useBelow, setUseBelow] = useState(true);
   const [useAbove, setUseAbove] = useState(false);
@@ -31,7 +31,7 @@ export default function AlertDialog({ slot, existing, count, onSave, onDelete, o
   const b = useBelow ? num(below) : null;
   const a = useAbove ? num(above) : null;
   const invalid = (useBelow && b == null) || (useAbove && a == null) || (!useBelow && !useAbove) || (b != null && a != null && b >= a);
-  const full = !existing && count >= ALERT_LIMIT;
+  const full = !existing && count >= limit;
   const vs = (n) => (price && n ? ` ${Math.abs(Math.round((1 - n / price) * 100))}% ${n < price ? 'below' : 'above'} today` : '');
 
   async function save() {
@@ -72,7 +72,7 @@ export default function AlertDialog({ slot, existing, count, onSave, onDelete, o
           </Box>
         </Stack>
         {full ? (
-          <Alert severity="info">You can have up to {ALERT_LIMIT} price alerts. Remove one on My alerts to add another.</Alert>
+          <Alert severity="info">You’re using all {limit} of your price alerts. Remove one on My alerts to add another.</Alert>
         ) : (
           <Stack spacing={1}>
             <FormControlLabel control={<Checkbox checked={useBelow} onChange={(e) => setUseBelow(e.target.checked)} />}
@@ -87,7 +87,7 @@ export default function AlertDialog({ slot, existing, count, onSave, onDelete, o
             )}
             <Typography variant="caption" color="text.secondary" sx={{ pt: 1, lineHeight: 1.5 }}>
               Prices update once a day, so you’ll hear the evening after it gets there. Market price is TCGPlayer’s
-              recent-sales average — what you’d get selling is usually a bit less. {!existing && `${count} of ${ALERT_LIMIT} alerts in use.`}
+              recent-sales average — what you’d get selling is usually a bit less. {!existing && `${count} of ${limit} alerts in use.`}
             </Typography>
             {error && <Alert severity="error">{error}</Alert>}
           </Stack>

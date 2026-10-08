@@ -970,7 +970,7 @@ export default function App() {
 
       <Suspense fallback={null}>
         {alertSlot && (
-          <AlertDialog slot={alertSlot} existing={alertsByKey.get(alertSlot.key) || null} count={alertsApi.alerts.length}
+          <AlertDialog slot={alertSlot} existing={alertsByKey.get(alertSlot.key) || null} count={alertsApi.alerts.length} limit={alertsApi.limit}
             onClose={() => setAlertSlot(null)}
             onSave={async (targets) => {
               const had = alertsByKey.get(alertSlot.key);

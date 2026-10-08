@@ -29,17 +29,6 @@ create table if not exists public.price_alerts (
   constraint price_alerts_one_per_card unique (user_id, slot_key)
 );
 
--- At most 5 alerts per account.
-create or replace function public.price_alerts_limit() returns trigger language plpgsql set search_path = '' as $$
-begin
-  if (select count(*) from public.price_alerts where user_id = new.user_id) >= 5 then
-    raise exception 'alert limit reached' using errcode = 'P0001', hint = 'You can have up to 5 price alerts.';
-  end if;
-  return new;
-end;
-$$;
-drop trigger if exists price_alerts_limit on public.price_alerts;
-create trigger price_alerts_limit before insert on public.price_alerts for each row execute function public.price_alerts_limit();
 
 create or replace function public.price_alerts_touch() returns trigger language plpgsql set search_path = '' as $$
 begin
@@ -58,19 +47,44 @@ create policy "Own alerts" on public.price_alerts for all to authenticated
 revoke all on public.price_alerts from anon, authenticated;
 grant select, insert, update, delete on public.price_alerts to authenticated;
 
--- Email preference + the token behind the email's "Turn off alert emails" link
--- (which works without signing in).
+-- Per-account settings: email preference, the token behind the email's "Turn off
+-- alert emails" link (which works without signing in), and how many alerts the
+-- account may have — 2 on a free account. Collectors can change only `emails`;
+-- the limit is raised here (or, later, by a paid plan), never from the app.
 create table if not exists public.alert_settings (
   user_id           uuid primary key default auth.uid() references auth.users (id) on delete cascade,
   emails            boolean not null default true,
   unsubscribe_token uuid not null default gen_random_uuid() unique
 );
+alter table public.alert_settings add column if not exists alert_limit integer not null default 2 check (alert_limit between 0 and 100);
 alter table public.alert_settings enable row level security;
 drop policy if exists "Own alert settings" on public.alert_settings;
 create policy "Own alert settings" on public.alert_settings for all to authenticated
   using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
 revoke all on public.alert_settings from anon, authenticated;
-grant select, insert, update on public.alert_settings to authenticated;
+grant select on public.alert_settings to authenticated;
+grant insert (user_id, emails), update (emails) on public.alert_settings to authenticated;
+
+-- Alerts per account: the account's alert_limit (2 unless raised).
+create or replace function public.price_alerts_limit() returns trigger language plpgsql set search_path = '' as $$
+declare
+  cap integer := coalesce((select alert_limit from public.alert_settings where user_id = new.user_id), 2);
+begin
+  if (select count(*) from public.price_alerts where user_id = new.user_id) >= cap then
+    raise exception 'alert limit reached' using errcode = 'P0001', hint = format('This account can have %s price alerts.', cap);
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists price_alerts_limit on public.price_alerts;
+create trigger price_alerts_limit before insert on public.price_alerts for each row execute function public.price_alerts_limit();
+
+-- To give an account more alerts (e.g. a supporter), run:
+--   update public.alert_settings set alert_limit = 10
+--   where user_id = (select id from auth.users where email = 'them@example.com');
+-- (If they've never opened My alerts, insert the row first:
+--   insert into public.alert_settings (user_id, alert_limit)
+--   select id, 10 from auth.users where email = 'them@example.com' on conflict (user_id) do update set alert_limit = 10;)
 
 -- The unsubscribe link: turns alert emails off for whoever owns the token.
 create or replace function public.alerts_unsubscribe(token uuid) returns boolean

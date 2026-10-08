@@ -9,7 +9,7 @@ import ReplayIcon from '@mui/icons-material/Replay';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
 import { catalogRows } from '../../catalog';
-import { ALERT_LIMIT, alertTargets, fetchAlertEmails, setAlertEmails, unsubscribeAlerts, usd } from '../../lib/alerts';
+import { alertTargets, fetchAlertEmails, setAlertEmails, unsubscribeAlerts, usd } from '../../lib/alerts';
 import { DISPLAY_FONT } from '../../theme';
 
 // Today's price for an alert's product + printing, from the bundled catalog.
@@ -81,7 +81,7 @@ export default function AlertsPage({ api, userId, signedIn, onSignIn, onEdit, un
       ) : (
         <>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mt: 3, mb: 1.5, alignItems: { sm: 'center' }, justifyContent: 'space-between' }}>
-            <Typography color="text.secondary">{api.alerts.length} of {ALERT_LIMIT} alerts in use</Typography>
+            <Typography color="text.secondary">{api.alerts.length} of {api.limit} alerts in use</Typography>
             <FormControlLabel label="Email me when an alert is reached" disabled={emails == null}
               control={<Switch checked={!!emails} onChange={(e) => { const v = e.target.checked; setEmails(v); setAlertEmails(userId, v).catch(() => setEmails(!v)); }} />} />
           </Stack>

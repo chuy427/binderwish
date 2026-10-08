@@ -4,7 +4,9 @@ import { supabase } from './cloud';
 // Price alerts (supabase/alerts.sql): "email me when this card drops to / rises to
 // $X". Signed-in collectors only; checked nightly by scripts/check-alerts.mjs.
 
-export const ALERT_LIMIT = 5;
+// Alerts a free account can have; an account's own limit (alert_settings.alert_limit)
+// can be higher — e.g. a future paid plan.
+export const FREE_ALERT_LIMIT = 2;
 const FIELDS = 'id, game, set_id, slot_key, product_id, printing, card_name, set_name, variant_label, number_label, image, below, above, status, hit_at, hit_price, created_at';
 
 // What the cards and the wishlist read: { enabled, byKey: Map(slotKey → alert), open(slot) }.
@@ -24,11 +26,16 @@ const clean = (a) => ({
 // The signed-in collector's alerts, kept in sync as they change.
 export function useAlerts(userId) {
   const [alerts, setAlerts] = useState([]);
+  const [limit, setLimit] = useState(FREE_ALERT_LIMIT);
   const [loaded, setLoaded] = useState(false);
   const reload = useCallback(async () => {
     if (!userId) { setAlerts([]); setLoaded(true); return; }
-    const { data, error } = await supabase.from('price_alerts').select(FIELDS).order('created_at');
+    const [{ data, error }, settings] = await Promise.all([
+      supabase.from('price_alerts').select(FIELDS).order('created_at'),
+      supabase.from('alert_settings').select('alert_limit').maybeSingle(),
+    ]);
     if (!error) setAlerts(data.map(clean));
+    setLimit(settings.data?.alert_limit ?? FREE_ALERT_LIMIT);
     setLoaded(true);
   }, [userId]);
   useEffect(() => { setLoaded(false); reload(); }, [reload]);
@@ -43,11 +50,11 @@ export function useAlerts(userId) {
     const q = existing ? supabase.from('price_alerts').update(row).eq('id', existing.id) : supabase.from('price_alerts').insert(row);
     const { error } = await q;
     if (error) {
-      if (/alert limit/i.test(error.message)) throw new Error(`You can have up to ${ALERT_LIMIT} price alerts — remove one to add another.`);
+      if (/alert limit/i.test(error.message)) throw new Error(`You’re using all ${limit} of your price alerts — remove one to add another.`);
       throw new Error(error.message);
     }
     await reload();
-  }, [reload]);
+  }, [reload, limit]);
 
   const update = useCallback(async (id, patch) => {
     const { error } = await supabase.from('price_alerts').update(patch).eq('id', id);
@@ -61,7 +68,7 @@ export function useAlerts(userId) {
     await reload();
   }, [reload]);
 
-  return { alerts, loaded, reload, save, update, remove };
+  return { alerts, limit, loaded, reload, save, update, remove };
 }
 
 // Whether alert emails are on (a missing row means on).
@@ -69,9 +76,14 @@ export async function fetchAlertEmails() {
   const { data } = await supabase.from('alert_settings').select('emails').maybeSingle();
   return data ? data.emails : true;
 }
+// (Collectors may only change `emails`, so: update the row, or create it the first time.)
 export async function setAlertEmails(userId, emails) {
-  const { error } = await supabase.from('alert_settings').upsert({ user_id: userId, emails });
+  const { data, error } = await supabase.from('alert_settings').update({ emails }).eq('user_id', userId).select('user_id');
   if (error) throw new Error(error.message);
+  if (!data?.length) {
+    const { error: e2 } = await supabase.from('alert_settings').insert({ user_id: userId, emails });
+    if (e2) throw new Error(e2.message);
+  }
 }
 
 // The email's "Turn off alert emails" link (no sign-in needed).
