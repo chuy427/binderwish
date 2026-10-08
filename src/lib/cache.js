@@ -25,29 +25,68 @@ function cacheRead(url, ttl) {
   return undefined;
 }
 
+// Cached responses in localStorage: [key, time saved], oldest first.
+function cachedEntries() {
+  const out = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k?.startsWith(CACHE_PREFIX)) continue;
+      let t = 0;
+      try { t = JSON.parse(localStorage.getItem(k)).t || 0; } catch {}
+      out.push([k, t]);
+    }
+  } catch { /* storage unavailable */ }
+  return out.sort((a, b) => a[1] - b[1]);
+}
+
+// Frees room by dropping the oldest half of cached responses. Cached card data is
+// only a speed-up, so it always gives way to the collection itself.
+function evictCache() {
+  const entries = cachedEntries();
+  entries.slice(0, Math.max(1, Math.ceil(entries.length / 2))).forEach(([k]) => {
+    try { localStorage.removeItem(k); } catch {}
+  });
+  return entries.length > 0;
+}
+
+// Saves something that matters (the collection, print sheet, settings…): when storage
+// is full, cached card data is cleared to make room. Returns false only if it still
+// couldn't be saved.
+export function saveLocal(key, value) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try { localStorage.setItem(key, value); return true; } catch {
+      if (!evictCache()) return false;
+    }
+  }
+  return false;
+}
+
+// On load: drop cached copies nobody will read again — older builds' catalog files
+// (each deploy versions them with ?b= / ?v=; only the newest copy of each is kept)
+// and anything older than a month.
+export function pruneCache() {
+  const MONTH = 30 * 24 * HOUR;
+  const newest = new Map(); // address without its version → newest key
+  const drop = [];
+  for (const [k, t] of cachedEntries()) {
+    if (Date.now() - t > MONTH) { drop.push(k); continue; }
+    if (!/[?&][bv]=/.test(k)) continue;
+    const base = k.replace(/[?&][bv]=[^&]*/g, '');
+    if (newest.has(base)) drop.push(newest.get(base));
+    newest.set(base, k); // entries are oldest first, so this ends on the newest
+  }
+  drop.forEach((k) => { try { localStorage.removeItem(k); } catch {} });
+  return drop.length;
+}
+try { pruneCache(); } catch { /* storage unavailable */ }
+
 function cacheWrite(url, data) {
   const entry = { t: Date.now(), data };
   memCache.set(url, entry);
   const value = JSON.stringify(entry);
-  try {
-    localStorage.setItem(CACHE_PREFIX + url, value);
-  } catch {
-    // Probably over quota — evict the oldest half of cached responses and retry once.
-    try {
-      const keys = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k.startsWith(CACHE_PREFIX)) {
-          let t = 0;
-          try { t = JSON.parse(localStorage.getItem(k)).t; } catch {}
-          keys.push([k, t]);
-        }
-      }
-      keys.sort((a, b) => a[1] - b[1]);
-      keys.slice(0, Math.ceil(keys.length / 2)).forEach(([k]) => localStorage.removeItem(k));
-      localStorage.setItem(CACHE_PREFIX + url, value);
-    } catch { /* storage unavailable — memory cache still works */ }
-  }
+  // Probably over quota on failure — evict the oldest cached responses and retry.
+  saveLocal(CACHE_PREFIX + url, value);
 }
 
 export async function getJSON(url, ttl = TTL.search) {

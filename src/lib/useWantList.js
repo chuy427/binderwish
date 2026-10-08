@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { setSlots } from '../catalog';
 import { getGame } from '../games';
 import { customSetSlots } from './customSets';
+import { saveLocal } from './cache';
 
 // The want list: every slot in the sets you're collecting and your custom sets,
 // grouped by set (the page shows the ones you don't own). A copy is saved on the
@@ -30,7 +31,7 @@ function readSnapshot() {
 function writeSnapshot(groups) {
   const at = Date.now();
   const compact = groups.map(({ slots, ...g }) => ({ ...g, rows: slots.map((sl) => pack(sl, g)) }));
-  try { localStorage.setItem(SNAPSHOT_KEY, JSON.stringify({ at, groups: compact })); } catch {}
+  saveLocal(SNAPSHOT_KEY, JSON.stringify({ at, groups: compact }));
   return at;
 }
 

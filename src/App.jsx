@@ -13,6 +13,7 @@ import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined';
 import SearchIcon from '@mui/icons-material/Search';
 import MenuIcon from '@mui/icons-material/Menu';
 import { cleanCustomSets, newCustomSetId } from './lib/customSets';
+import { saveLocal } from './lib/cache';
 
 
 import SiteFootnote from './components/SiteFootnote';
@@ -238,6 +239,13 @@ export default function App() {
   // On set pages the print sheet lives in a drawer, opened by "Add missing to print".
   const [sheetOpen, setSheetOpen] = useState(false);
   const [toast, setToast] = useState(null);
+  // Said once per visit if this browser can't save the collection (storage blocked or full).
+  const storageWarned = useRef(false);
+  const warnStorage = () => {
+    if (storageWarned.current) return;
+    storageWarned.current = true;
+    setToast('This browser couldn’t save your latest changes — its storage is full or blocked. Sign in to keep them in your account.');
+  };
   // Curators (supabase/picks.sql) can publish picks; their own picks include unpublished ones.
   const [curator, setCurator] = useState(null);
   const [myPicks, setMyPicks] = useState([]);
@@ -300,7 +308,7 @@ export default function App() {
   const drawerView = view === 'set' || view === 'custom' || view === 'pick';
 
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ queue, options })); } catch {}
+    if (!saveLocal(STORAGE_KEY, JSON.stringify({ queue, options }))) warnStorage();
   }, [queue, options]);
   // Another tab of BinderWish changed the collection: take its version, so an
   // older tab never saves stale data over newer changes.
@@ -316,7 +324,7 @@ export default function App() {
     return () => window.removeEventListener('storage', onStorage);
   }, []);
   useEffect(() => {
-    try { localStorage.setItem(OWNED_KEY, JSON.stringify([...owned])); } catch {}
+    if (!saveLocal(OWNED_KEY, JSON.stringify([...owned]))) warnStorage();
   }, [owned]);
 
   // The current game's sets, plus Pokémon's for the home page showcase.

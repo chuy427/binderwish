@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ACCOUNTS_ENABLED, fetchCollection, saveCollection, supabase } from './cloud';
 import { freshBase, mergeState } from './merge';
+import { saveLocal } from './cache';
 
 // Keeps { owned, queue, options } in sync with the signed-in account — merging,
 // never overwriting. This device remembers the version it last synced (the
@@ -28,7 +29,7 @@ function readBase(userId) {
   } catch { return null; }
 }
 function writeBase(b) {
-  try { if (b) localStorage.setItem(BASE_KEY, JSON.stringify(b)); else localStorage.removeItem(BASE_KEY); } catch {}
+  try { if (b) saveLocal(BASE_KEY, JSON.stringify(b)); else localStorage.removeItem(BASE_KEY); } catch {}
 }
 
 export function useCloudSync({ owned, queue, options, apply, onSignedOut, onLoaded }) {

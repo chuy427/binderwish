@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './cloud';
+import { saveLocal } from './cache';
 
 // BinderWish picks: curated sets published by approved curators (supabase/picks.sql).
 // Anyone can read published picks; the list is kept in localStorage so picks you
@@ -11,7 +12,7 @@ const FIELDS = 'id, slug, game, title, description, definition, covers, card_cou
 const readCache = () => {
   try { const v = JSON.parse(localStorage.getItem(CACHE) || 'null'); return Array.isArray(v) ? v : null; } catch { return null; }
 };
-const writeCache = (list) => { try { localStorage.setItem(CACHE, JSON.stringify(list)); } catch { /* storage full or blocked */ } };
+const writeCache = (list) => saveLocal(CACHE, JSON.stringify(list));
 
 const clean = (p) => ({
   id: p.id,
