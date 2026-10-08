@@ -8,6 +8,7 @@
     "build": "vite build && node scripts/prerender.mjs",
     "preview": "vite preview",
     "sync-tcgplayer": "node scripts/sync-tcgplayer.mjs",
+    "check-matching": "node scripts/check-matching.mjs",
     "prebuild": "node scripts/sync-tcgplayer.mjs",
     "predev": "node scripts/sync-tcgplayer.mjs --if-missing"
   },

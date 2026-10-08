@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  issues: write # the nightly card-matching check keeps one issue up to date
 
 concurrency:
   group: deploy
@@ -58,3 +59,42 @@ jobs:
         run: |
           curl -sS -o /dev/null -w "auth: %{http_code}\n" "$SUPABASE_URL/auth/v1/settings" -H "apikey: $SUPABASE_KEY"
           curl -sS -o /dev/null -w "database: %{http_code} (401 is expected — the request still reaches it)\n" "$SUPABASE_URL/rest/v1/collections?select=user_id&limit=1" -H "apikey: $SUPABASE_KEY"
+
+      # Nightly card-matching check (scripts/check-matching.mjs): runs the site's own
+      # card ↔ TCGPlayer matching over every Pokémon and Lorcana set and reports
+      # duplicates, wrong-looking matches and unmatched cards in new sets. Keeps one
+      # open issue labelled "card-matching" up to date (a comment when the findings
+      # change, so GitHub emails you) and closes it when everything checks out.
+      # Skipped on pushes; never fails the deploy.
+      - name: Check card matching
+        id: matching
+        if: github.event_name != 'push'
+        continue-on-error: true
+        run: |
+          node scripts/check-matching.mjs --out matching-report.md
+          cat matching-report.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Report card matching
+        if: github.event_name != 'push' && steps.matching.outputs.problems != '' && steps.matching.outputs.problems != 'error'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PROBLEMS: ${{ steps.matching.outputs.problems }}
+        run: |
+          gh label create card-matching --color D93F0B --description "Nightly card-matching check" --force
+          issue=$(gh issue list --label card-matching --state open --json number --jq '.[0].number // empty')
+          if [ "$PROBLEMS" = "0" ]; then
+            if [ -n "$issue" ]; then gh issue close "$issue" --comment "All clear — last night's check found no problems."; fi
+            exit 0
+          fi
+          title="Card matching: $PROBLEMS problem(s) found"
+          if [ -z "$issue" ]; then
+            gh issue create --title "$title" --label card-matching --body-file matching-report.md
+            exit 0
+          fi
+          # Compare without the first line (it carries the date).
+          old=$(gh issue view "$issue" --json body --jq .body | tail -n +2)
+          new=$(tail -n +2 matching-report.md)
+          if [ "$old" != "$new" ]; then
+            gh issue edit "$issue" --title "$title" --body-file matching-report.md
+            gh issue comment "$issue" --body "The findings changed — now $PROBLEMS problem(s). The issue description has the latest report."
+          fi
